@@ -22,18 +22,17 @@ import numba as nb
 import matplotlib
 import matplotlib.pyplot as plt
 
+parser = argparse.ArgumentParser()
+parser.add_argument( '--loglevel',
+                     default='info',
+                     help='Provide logging level. Example --loglevel debug, default=warning' )
+
+args = parser.parse_args()
+
 logging.basicConfig()
 logger = logging.getLogger(__name__).getChild('trk_h5totree_converter')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(level=args.loglevel.upper())
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument( '--loglevel',
-#                      default='warning',
-#                      help='Provide logging level. Example --loglevel debug, default=warning' )
-#
-# args = parser.parse_args()
-#
-# logging.basicConfig( level=args.loglevel.upper() )
 
 
 class trk_h5totree_converter:
@@ -281,10 +280,11 @@ class trk_h5totree_converter:
         for k, v in self._data.items():
             f = uproot.recreate('{}.root'.format(k))
             for i, a in v.items():
-                f['trk{}/t'.format(i)] = a
+                f['trk{}/hits'.format(i)] = a
             f.close()
 
 if __name__ == '__main__':
     converter = trk_h5totree_converter()
     converter.load_trk('/home/yousen/Public/ndlar_shared/data/packet-0050017-2024_07_08_15_13_35_CDT.FLOW.rock_mu.h5', 33)
+    converter.load_trk('/home/yousen/Public/ndlar_shared/data/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.rock_mu.h5', 33)
     converter.write()
