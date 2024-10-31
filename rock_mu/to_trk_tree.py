@@ -38,6 +38,8 @@ logger.setLevel(level=args.loglevel.upper())
 class trk_h5totree_converter:
     def __init__(self):
         self._data = {}
+        self._tinterval_1st = 18 # [0.1us]; must be consistent with hits['t_drift']
+        self._Qthres = 5 # will be done channel by channel; unit must be consistent with hits['Q']
 
     def load_trk(self, f_name, itrk):
         trk, hits = self._load_hdf5(f_name, itrk)
@@ -119,8 +121,30 @@ class trk_h5totree_converter:
         logger.debug('first 5 ref {}: {}'.format(reflabel, hits[reflabel][:5].to_list()))
         logger.debug('first 5 dx: {}'.format(dx[:5].to_list()))
 
+        dt = self.__dt(hits)
+        tinterval = self.__tinterval(hits)
+        totQ = self.__totQ(hits)
+        dQ = self.__dQ(hits)
+        Qint = self.__Qint(hits)
+        dQint = self.__dQint(hits)
+        accQ = self.__accQ(hits)
+        indices = self.__index_perpxl(hits)
+
         hits_new = ak.copy(hits)
         hits_new['dx'] = dx
+        hits_new['dt'] = dt
+
+        hits_new['tinterval'] = tinterval
+
+        hits_new['totQ'] = totQ
+        hits_new['Qint'] = Qint
+
+        hits_new['dQ'] = dQ
+        hits_new['dQint'] = dQint
+
+        hits_new['accQ'] = accQ
+
+        hits_new['index'] = indices
 
         logger.debug('first 3 hits (old): {}'.format(hits[:3].to_list()))
         logger.debug('first 3 hits (new): {}'.format(hits_new[:3].to_list()))
@@ -150,6 +174,127 @@ class trk_h5totree_converter:
         fig.savefig(metadata['projviews_png'])
 
         return hits_new
+
+    # validated
+    def __dt(self, hits):
+        if np.sum(ak.num(hits['t_drift']) == 0) != 0 :
+            raise NotImplementedError
+        dt = ak.copy(hits['t_drift'])
+        dt_max = ak.max(dt, axis=-1, keepdims=True)
+        dt = dt - dt_max
+        logger.debug('first 5 t: {}'.format(hits['t_drift'][:5].to_list()))
+        logger.debug('first 5 dt: {}'.format(dt[:5].to_list()))
+        dt = ak.enforce_type(dt, 'var * float64')
+        return dt
+
+    # validated
+    def __tinterval(self, hits):
+        if np.sum(ak.num(hits['Q']) == 0) != 0 :
+            raise NotImplementedError
+
+        tinterval = hits['t_drift'][:, 1:] - hits['t_drift'][:, :-1]
+        # the single element case should be properly handled?
+        tinterval = ak.concatenate([ak.Array([[self._tinterval_1st]]), tinterval], axis=-1)
+        tinterval = ak.where(ak.num(hits['t_drift'])>0, tinterval, ak.Array([[]]))
+
+        logger.debug('__tinterval')
+        logger.debug('first 5 t: {}'.format(hits['t_drift'][:5].to_list()))
+        logger.debug('first 5 tinterval: {}'.format(tinterval[:5].to_list()))
+        logger.debug('first 5 t of single-hit pixel: {}'.format(hits['t_drift'][ak.num(hits['t_drift'])==1][:5].to_list()))
+        logger.debug('first 5 of single-hit pixel: {}'.format(tinterval[ak.num(hits['t_drift'])==1][:5].to_list()))
+        return tinterval
+
+    # validated
+    def __totQ(self, hits):
+        totQ = ak.sum(hits['Q'], axis=-1, keepdims=True)
+        totQ = totQ + ak.zeros_like(hits['Q'])
+        logger.debug('__totQ')
+        logger.debug('first 5 Q: {}'.format(hits['Q'][:5].to_list()))
+        logger.debug('first 5 totQ: {}'.format(totQ[:5].to_list()))
+        return totQ
+
+    # validated
+    def __Qint(self, hits):
+        if np.sum(ak.num(hits['Q']) == 0) != 0:
+            raise NotImplementedError
+
+        first_elements = ak.firsts(hits['Q']) - self._Qthres
+        rest_elements = hits['Q'][:,1:]
+        Qint = ak.concatenate([first_elements[..., None], rest_elements], axis=-1)
+        Qint = ak.enforce_type(Qint , 'var * float64')
+
+        logger.debug('__Qint')
+        logger.debug('first 3 Q: {}'.format(hits['Q'][:3].to_list()))
+        logger.debug('first 3 Qint: {}'.format(Qint[:3].to_list()))
+        logger.debug('first 3 Q with n==1: {}'.format(hits['Q'][ak.num(hits['Q'],axis=-1)==1][:3].to_list()))
+        logger.debug('first 3 Qint with n==1: {}'.format(Qint[ak.num(Qint,axis=-1)==1][:3].to_list()))
+        logger.debug('first 3 Q with n==2: {}'.format(hits['Q'][ak.num(hits['Q'],axis=-1)==2][:3].to_list()))
+        logger.debug('first 3 Qint with n==2: {}'.format(Qint[ak.num(Qint,axis=-1)==2][:3].to_list()))
+
+        return Qint
+
+    # validated
+    def __index_perpxl(self, hits):
+        if np.sum(ak.num(hits['Q']) == 0) != 0:
+            raise NotImplementedError
+        Q = hits['Q']
+        indices = ak.ones_like(Q, dtype=np.int32)
+        indices = ak.Array([np.cumsum(idxs).to_list() for idxs in indices]) - 1
+
+        for i in range(1,3+1):
+            logger.debug('first 3 indices with n=={}: {}'.format(i, indices[ak.num(indices,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 indices with n=={}: {}'.format(i, indices[ak.num(indices,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 indices with n=={}: {}'.format(i, indices[ak.num(indices,axis=-1)==i][:3].to_list()))
+        return indices
+
+    # validated
+    def __accQ(self, hits):
+        # discussions https://stackoverflow.com/a/65185301 seem obsolete
+        # copy from https://stackoverflow.com/a/65174020
+        Q = hits['Q']
+        totQ = self.__totQ(hits)
+        accQ = ak.Array([np.cumsum(qs).to_list() for qs in Q])
+
+        logger.debug('__accQ')
+        for i in range(1,3+1):
+            logger.debug('first 3 Q with n=={}: {}'.format(i, Q[ak.num(Q,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 accQ with n=={}: {}'.format(i, accQ[ak.num(accQ,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 totQ with n=={}: {}'.format(i, totQ[ak.num(totQ,axis=-1)==i][:3].to_list()))
+
+        return accQ
+
+    # validated
+    def __dQ(self, hits):
+        if np.sum(ak.num(hits['Q']) == 0) != 0:
+            raise NotImplementedError
+        Q = hits['Q']
+        dQ = Q[:, 1:] - Q[:, :-1]
+        # the single element case should be properly handled?
+        dQ = ak.concatenate([ak.Array([[0]]), dQ], axis=-1)
+
+        logger.debug('__dQ')
+        for i in range(1,3+1):
+            logger.debug('first 3 Q with n=={}: {}'.format(i, Q[ak.num(Q,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 dQ with n=={}: {}'.format(i, dQ[ak.num(dQ,axis=-1)==i][:3].to_list()))
+        return dQ
+
+
+    # validated
+    def __dQint(self, hits):
+        if np.sum(ak.num(hits['Q']) == 0) != 0:
+            raise NotImplementedError
+        Qint = self.__Qint(hits)
+        dQint = Qint[:, 1:] - Qint[:, :-1]
+        # the single element case should be properly handled?
+        dQint = ak.concatenate([ak.firsts(Qint)[...,None], dQint], axis=-1)
+        dQint = ak.enforce_type(dQint, 'var * float64')
+
+        logger.debug('__dQint')
+        for i in range(1,3+1):
+            logger.debug('first 3 Qint with n=={}: {}'.format(i, Qint[ak.num(Qint,axis=-1)==i][:3].to_list()))
+            logger.debug('first 3 dQint with n=={}: {}'.format(i, dQint[ak.num(dQint,axis=-1)==i][:3].to_list()))
+
+        return dQint
 
     def _pxl_labels(self, hits, tol=1E-6):
         points_yz = np.column_stack([hits['io_group'], hits['io_channel'], hits['y'], hits['z']])
@@ -286,5 +431,5 @@ class trk_h5totree_converter:
 if __name__ == '__main__':
     converter = trk_h5totree_converter()
     converter.load_trk('/home/yousen/Public/ndlar_shared/data/packet-0050017-2024_07_08_15_13_35_CDT.FLOW.rock_mu.h5', 33)
-    converter.load_trk('/home/yousen/Public/ndlar_shared/data/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.rock_mu.h5', 33)
+    #converter.load_trk('/home/yousen/Public/ndlar_shared/data/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.rock_mu.h5', 33)
     converter.write()
