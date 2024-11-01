@@ -269,8 +269,10 @@ class trk_h5totree_converter:
             raise NotImplementedError
         Q = hits['Q']
         dQ = Q[:, 1:] - Q[:, :-1]
+        dQfirsts = ak.firsts(Q)
         # the single element case should be properly handled?
-        dQ = ak.concatenate([ak.Array([[0]]), dQ], axis=-1)
+        dQ = ak.concatenate([dQfirsts[..., None], dQ], axis=-1)
+        dQ = ak.enforce_type(dQ, 'var * float64')
 
         logger.debug('__dQ')
         for i in range(1,3+1):
