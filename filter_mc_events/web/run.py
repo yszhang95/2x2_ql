@@ -8,7 +8,8 @@ import plotly.graph_objects as go
 
 
 # Load HDF5 data once
-with h5py.File('many_muon_hits.hdf5', 'r') as f:
+source_file = "many_muon_hits.hdf5"
+with h5py.File(source_file, 'r') as f:
     hits = f['hits'][:]
 
 # Convert to DataFrame for ease of filtering
@@ -44,9 +45,20 @@ app.layout = html.Div([
     ]),
     html.Div([
         html.Button('Draw Line', id='line-button', n_clicks=0),
-        dcc.Store(id='line-store', data=[]),
     ]),
+    dcc.Store(id='line-store', data=[]),
 
+    html.Div([
+        html.Button('Select Nearby Points', id='select-nearby-button', n_clicks=0),
+        dcc.Input(
+            id='distance-threshold',
+            type='number',
+            value=3,
+            step=0.1,
+            style={'width': '100px', 'marginLeft': '10px'}
+        ),
+    ], style={'marginTop': '10px'}),
+    dcc.Store(id='nearby-store', data=[]),
     dcc.Graph(
         id='event-graph',
         style={'height': '800px', 'width': '100%'}
@@ -103,6 +115,51 @@ def change_event(prev_clicks, next_clicks, current_value):
     return event_ids[idx]
 
 @app.callback(
+    Output('nearby-store', 'data'),
+    Input('select-nearby-button', 'n_clicks'),
+    State('line-store', 'data'),
+    State('event-dropdown', 'value'),
+    State('distance-threshold', 'value'),
+    prevent_initial_call=True
+)
+def compute_nearby(n_clicks, line_data, event_id, threshold):
+    if not line_data or len(line_data) < 2:
+        return {'in': [], 'out': []}, "No line selected"
+
+    p0, p1 = np.array(line_data[0]), np.array(line_data[1])
+    subdf = df[df['event_id'] == event_id]
+
+    # Compute distances
+    seg_vec = p1 - p0
+    seg_len2 = np.dot(seg_vec, seg_vec)
+    points = subdf[['x', 'y', 'z']].to_numpy()
+    vecs = points - p0
+    t = np.dot(vecs, seg_vec) / seg_len2
+    t = np.clip(t, 0, 1)
+    proj = p0 + np.outer(t, seg_vec)
+    dists = np.linalg.norm(points - proj, axis=1)
+
+    in_mask = dists <= threshold
+    df_in = subdf[in_mask]
+    df_out = subdf[~in_mask]
+
+    # Save to HDF5
+    output_file = f"{source_file.replace('.hdf5', '_evt')}{event_id}.hdf5"
+    direction = seg_vec / np.linalg.norm(seg_vec)
+
+    with h5py.File(output_file, 'w') as f:
+        f.create_dataset('hits/selected/data', data=df_in.to_records(index=False))
+        f.create_dataset('hits/deselected/data', data=df_out.to_records(index=False))
+        f.create_dataset('picked/points/data', data=np.array([p0, p1]))
+        f.create_dataset('picked/direction/data', data=direction)
+        f.create_dataset('source_file', data=np.bytes_(source_file))
+
+    return {
+        'in': df_in.to_dict('records'),
+        'out': df_out.to_dict('records')
+    }
+
+@app.callback(
     Output('line-store', 'data'),
     Input('line-button', 'n_clicks'),
     Input('event-dropdown', 'value'),
@@ -117,7 +174,6 @@ def update_line(n_clicks, event_id, picked):
         return []  # clear line on event change
 
     if trigger_id == 'line-button' and len(picked) >= 2:
-        print(trigger_id, picked)
         return picked[:2]
 
     return []
@@ -126,8 +182,9 @@ def update_line(n_clicks, event_id, picked):
     Output('event-graph', 'figure'),
     Input('event-dropdown', 'value'),
     Input('line-store', 'data'),
+    Input('nearby-store', 'data')
 )
-def update_display(event_id, line_data):
+def update_display(event_id, line_data, nearby_data):
     subdf = df[df['event_id'] == event_id]
     fig = go.Figure()
 
@@ -153,7 +210,6 @@ def update_display(event_id, line_data):
         ),
         name='all hits'
     ))
-    print('line-store', line_data)
 
     # Draw line if present
     if line_data and len(line_data) == 2:
@@ -165,6 +221,28 @@ def update_display(event_id, line_data):
             marker=dict(size=5, color='red'),
             name='Line'
         ))
+
+    # Plot nearby points
+    if nearby_data:
+        near_in = pd.DataFrame(nearby_data['in'])
+        near_out = pd.DataFrame(nearby_data['out'])
+
+        if not near_out.empty:
+            fig.add_trace(go.Scatter3d(
+                x=near_out['x'], y=near_out['y'], z=near_out['z'],
+                mode='markers',
+                marker=dict(size=2, color='lightgray'),
+                name='Outside Range'
+            ))
+
+        if not near_in.empty:
+            fig.add_trace(go.Scatter3d(
+                x=near_in['x'], y=near_in['y'], z=near_in['z'],
+                mode='markers',
+                marker=dict(size=4, color='blue'),
+                name='Within Range'
+            ))
+
 
     fig.update_layout(
         title=f'Event ID {event_id}',
