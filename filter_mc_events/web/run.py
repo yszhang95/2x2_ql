@@ -4,6 +4,8 @@ import h5py
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+
 
 # Load HDF5 data once
 with h5py.File('many_muon_hits.hdf5', 'r') as f:
@@ -72,15 +74,49 @@ def change_event(prev_clicks, next_clicks, current_value):
     Output('event-graph', 'figure'),
     Input('event-dropdown', 'value')
 )
+    # fig.update_layout(height=800)  # ? this line makes the plot taller
 def update_display(event_id):
     subdf = df[df['event_id'] == event_id]
-    fig = px.scatter_3d(
-        subdf, x='x', y='y', z='z', color='Q',
+    fig = go.Figure()
+
+    # for group in np.unique(subdf['io_group']):
+    #     group_df = subdf[subdf['io_group'] == group]
+    #     fig.add_trace(go.Scatter3d(
+    #         x=group_df['x'], y=group_df['y'], z=group_df['z'],
+    #         mode='markers',
+    #         marker=dict(
+    #             size=3,
+    #             color=group_df['Q'],
+    #             coloraxis='coloraxis'  # Shared color scale
+    #         ),
+    #         name=f'io_group {group}'
+    #     ))
+    fig.add_trace(go.Scatter3d(
+        x=subdf['x'], y=subdf['y'], z=subdf['z'],
+        mode='markers',
+        marker=dict(
+            size=1,
+            color=subdf['Q'],
+            coloraxis='coloraxis'  # Shared color scale
+        ),
+        name='all hits'
+    ))
+
+    fig.update_layout(
         title=f'Event ID {event_id}',
-        labels={'Q': 'Charge'}
+        height=800,
+        coloraxis=dict(
+            colorscale='Viridis',
+            colorbar=dict(title='Q')
+        ),
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=-0.2,
+            xanchor='center',
+            x=0.5
+        )
     )
-    fig.update_traces(marker=dict(size=3))
-    fig.update_layout(height=800)  # ? this line makes the plot taller
     return fig
 
 if __name__ == '__main__':
