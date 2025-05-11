@@ -21,23 +21,10 @@ event_ids = sorted(df['event_id'].unique())
 
 # Build Dash app
 app = dash.Dash(__name__)
-app.layout = html.Div([
-    html.H2("Muon Event Display"),
-    dcc.Dropdown(
-        id='event-dropdown',
-        options=[{'label': str(eid), 'value': eid} for eid in event_ids],
-        value=event_ids[0]
-    ),
-    dcc.Graph(
-        id='event-graph',
-        style={'height': '800px', 'width': '100%'}
-    )
-])
-
 from dash import State
 
 app.layout = html.Div([
-    html.H2("Muon Event Display"),
+    html.H2("Event Display"),
     html.Div([
         html.Button('Previous', id='prev-button', n_clicks=0),
         dcc.Dropdown(
@@ -48,8 +35,53 @@ app.layout = html.Div([
         ),
         html.Button('Next', id='next-button', n_clicks=0),
     ], style={'display': 'flex', 'alignItems': 'center'}),
-    dcc.Graph(id='event-graph')
+    html.Div([
+        html.Button('Pick', id='pick-button', n_clicks=0),
+        html.Button('Reset', id='reset-button', n_clicks=0),
+        html.H4("Picked Points (x, y, z):"),
+        html.Pre(id='picked-points', children="[]"),
+        dcc.Store(id='picked-store', data=[]),
+    ]),
+    html.Div([
+        html.Button('Draw Line', id='line-button', n_clicks=0),
+        dcc.Store(id='line-store', data=[]),
+    ]),
+
+    dcc.Graph(
+        id='event-graph',
+        style={'height': '800px', 'width': '100%'}
+    )
 ])
+
+@app.callback(
+    Output('picked-store', 'data'),
+    Input('pick-button', 'n_clicks'),
+    Input('reset-button', 'n_clicks'),
+    Input('event-dropdown', 'value'),
+    State('event-graph', 'clickData'),
+    State('picked-store', 'data'),
+    prevent_initial_call=True
+)
+def update_picked(pick_n, reset_n, event_id, clickData, picked):
+    trigger_id = dash.callback_context.triggered_id
+
+    if trigger_id in ['reset-button', 'event-dropdown']:
+        return []
+
+    if trigger_id == 'pick-button' and clickData:
+        point = clickData['points'][0]
+        x, y, z = point['x'], point['y'], point['z']
+        q = point.get('marker.color', None)
+        picked.append((x, y, z))
+    return picked
+
+@app.callback(
+    Output('picked-points', 'children'),
+    Input('picked-store', 'data')
+)
+def display_picked(data):
+    return str(data)
+
 
 @app.callback(
     Output('event-dropdown', 'value'),
@@ -71,11 +103,31 @@ def change_event(prev_clicks, next_clicks, current_value):
     return event_ids[idx]
 
 @app.callback(
-    Output('event-graph', 'figure'),
-    Input('event-dropdown', 'value')
+    Output('line-store', 'data'),
+    Input('line-button', 'n_clicks'),
+    Input('event-dropdown', 'value'),
+    State('picked-store', 'data'),
+    prevent_initial_call=True
 )
-    # fig.update_layout(height=800)  # ? this line makes the plot taller
-def update_display(event_id):
+def update_line(n_clicks, event_id, picked):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == 'event-dropdown':
+        return []  # clear line on event change
+
+    if trigger_id == 'line-button' and len(picked) >= 2:
+        print(trigger_id, picked)
+        return picked[:2]
+
+    return []
+
+@app.callback(
+    Output('event-graph', 'figure'),
+    Input('event-dropdown', 'value'),
+    Input('line-store', 'data'),
+)
+def update_display(event_id, line_data):
     subdf = df[df['event_id'] == event_id]
     fig = go.Figure()
 
@@ -101,6 +153,18 @@ def update_display(event_id):
         ),
         name='all hits'
     ))
+    print('line-store', line_data)
+
+    # Draw line if present
+    if line_data and len(line_data) == 2:
+        x, y, z = zip(*line_data)
+        fig.add_trace(go.Scatter3d(
+            x=x, y=y, z=z,
+            mode='lines+markers',
+            line=dict(color='red', width=5),
+            marker=dict(size=5, color='red'),
+            name='Line'
+        ))
 
     fig.update_layout(
         title=f'Event ID {event_id}',
