@@ -79,7 +79,7 @@ with h5py.File('many_muon_hits.hdf5', 'w') as fout:
     pos = np.core.records.fromarrays(pos.T, names='x,y,z', formats='f4,f4,f4')
     hits = np.array(pos)
 
-    hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs, t_drift], usemask=False)
+    hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs/1E3, t_drift], usemask=False)
     hits = rfn.append_fields(hits, names=['io_group', 'io_channel', 'event_id'], data=[io_group, io_channel, eids], usemask=False)
 
     fout.create_dataset('hits', data=hits)
