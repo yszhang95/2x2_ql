@@ -11,7 +11,7 @@ import h5py
 from collections import defaultdict
 import numpy.lib.recfunctions as rfn
 
-def export_event_array(npz_path, output_dir, prefix='effq'):
+def export_event_array(npz_path, prefix):
     f = np.load(npz_path)
 
     # Match pattern only for exact keys like 'effq_tpcX_batchY'
@@ -66,16 +66,32 @@ def export_event_array(npz_path, output_dir, prefix='effq'):
 #         g.create_dataset('event_id', data=arrs[2])
 #         g.create_dataset('tpc_id', data=arrs[3])
 #         g.create_dataset('grid_index', data=arrs[4])
-with h5py.File('many_muon_hits.hdf5', 'w') as fout:
-    pos, qs, eids, tids, inds = export_event_array("/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/waveforms.npz", ".", prefix='hits')
+#output_dir = './nonoise_pid13_unipolar'
+output_dir = './nonoise_pid13'
+with h5py.File(f'{output_dir}/many_muon_hits.hdf5', 'w') as fout:
+    # pos, qs, eids, tids, inds = export_event_array("/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/waveforms.npz", ".", prefix='hits')
+    # pos, qs, eids, tids, inds = export_event_array("nonoise_pid13_unipolar/waveforms_nonoise_pid13_unipolar.npz", prefix='hits')
+    pos, qs, eids, tids, inds = export_event_array("nonoise_pid13/waveforms_pid13_ndlar.npz", prefix='hits')
     io_group = tids # there might be mismatch
-    io_channel = inds[0] * 5000 + inds[1]
+    io_channel = inds[:,0] * 5000 + inds[:,1]
+    # print(io_group.shape, io_channel.shape, inds.shape)
     pos_dtype = {
         'x': 'f4',
         'y': 'f4',
         'z': 'f4',
     }
-    t_drift = inds[3].astype(np.float32) * 0.05
+    t_drift = inds[:,3].astype(np.float32) * 0.05
+    # print(t_drift.max()/0.05)
+    # uqc, inv = np.unique(io_group*100000000 + io_channel, return_inverse=True)
+    chid = np.stack([io_group, io_channel, eids], axis=1)
+    # print(chid.shape)
+    uqc, inv = np.unique(chid, return_inverse=True, axis=0)
+    # print(inv.shape)
+    # for i, uq in enumerate(uqc):
+    #     m = i == inv
+    #     ok = len(np.unique(t_drift[m])) == len(t_drift[m])
+    #     if not ok:
+    #         print('t', t_drift[m], 'tpc', io_group[m], 'ch', io_channel[m], 'pos', pos[m], 'q', qs[m], 'eid', eids[m], 'tid', tids[m], 'inds', inds[m])
     pos = np.core.records.fromarrays(pos.T, names='x,y,z', formats='f4,f4,f4')
     hits = np.array(pos)
 

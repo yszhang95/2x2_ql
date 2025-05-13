@@ -1,100 +1,122 @@
+import streamlit as st
 import uproot
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import tkinter as tk
-from tkinter import ttk, messagebox
+import plotly.graph_objects as go
 
-class TTreeViewer:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("TTree Event Viewer")
+st.set_page_config(layout="wide")
+st.title("ROOT TTree Viewer (totN Categories)")
 
-        self.data = None
-        self.unique_event_ids = []
+# --- Sidebar inputs ---
+with st.sidebar:
+    filename = st.text_input("ROOT File", value="many_muons.root")
+    treename = st.text_input("TTree Name", value="mu_ndlar/hits")
 
-        # --- File & Tree Inputs ---
-        frame_top = tk.Frame(root)
-        frame_top.pack(pady=5)
+    load_btn = st.button("Load Data")
 
-        tk.Label(frame_top, text="ROOT file:").grid(row=0, column=0, sticky="e")
-        self.file_entry = tk.Entry(frame_top, width=40)
-        self.file_entry.insert(0, "many_muons.root")
-        self.file_entry.grid(row=0, column=1)
+# Session state to cache data
+if "data_loaded" not in st.session_state:
+    st.session_state.data_loaded = False
 
-        tk.Label(frame_top, text="Tree name:").grid(row=1, column=0, sticky="e")
-        self.tree_entry = tk.Entry(frame_top, width=40)
-        self.tree_entry.insert(0, "mu_ndlar/hits")
-        self.tree_entry.grid(row=1, column=1)
+if load_btn:
+    try:
+        file = uproot.open(filename)
+        tree = file[treename]
+        arrays = tree.arrays(["event_id", "x", "y", "z", "totN", "Q", "totQ", "tindex", "io_group"], library="np")
 
-        load_btn = tk.Button(frame_top, text="Load Data", command=self.load_data)
-        load_btn.grid(row=0, column=2, rowspan=2, padx=10)
+        st.session_state.arrays = arrays
+        st.session_state.unique_event_ids = np.unique(arrays["event_id"])
+        st.session_state.unique_tpc_ids = np.unique(arrays["io_group"])
+        st.session_state.data_loaded = True
+        st.success("Data loaded successfully.")
+    except Exception as e:
+        st.session_state.data_loaded = False
+        st.error(f"Failed to load ROOT data: {e}")
 
-        # --- Event Selection ---
-        self.event_var = tk.StringVar()
-        self.event_dropdown = ttk.Combobox(root, textvariable=self.event_var, state="disabled")
-        self.event_dropdown.pack(pady=5)
-        self.event_dropdown.bind("<<ComboboxSelected>>", self.update_plots)
 
-        # --- Plot Area ---
-        self.fig, self.axs = plt.subplots(1, 3, figsize=(15, 4))
-        self.canvas = FigureCanvasTkAgg(self.fig, master=root)
-        self.canvas.get_tk_widget().pack()
+def create_scatter(xdata, ydata, Q, masks, xlabel, ylabel, Q_min, Q_max,
+                   show_colorbar=False):
+    fig = go.Figure()
+    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+    for label, (mask, size) in masks.items():
+        fig.add_trace(go.Scattergl(
+            x=xdata[mask],
+            y=ydata[mask],
+            mode="markers",
+            marker=dict(
+                size=size,
+                color=Q[mask],
+                colorscale="Viridis",
+                cmin=Q_min, cmax=Q_max,
+                colorbar=dict(title="Charge (Q)"),
+                showscale=show_colorbar
+            ),
+            name=label
+        ))
+    fig.update_layout(
+        xaxis_title=xlabel,
+        yaxis_title=ylabel,
+        legend_title="totN Category",
+        height=500,
+        legend=dict(
+            orientation="h",      # Horizontal legend
+            yanchor="bottom",
+            y=-0.3,               # Below plot area
+            xanchor="center",
+            x=0.5
+        )
+    )
+    return fig
 
-    def load_data(self):
-        filename = self.file_entry.get()
-        treename = self.tree_entry.get()
+# Show interface if data is loaded
+if st.session_state.data_loaded:
+    arrays = st.session_state.arrays
+    event_ids = st.session_state.unique_event_ids
+    tpc_ids= st.session_state.unique_tpc_ids
 
-        try:
-            file = uproot.open(filename)
-            tree = file[treename]
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not open file or tree:\n{e}")
-            return
+    selected_event = st.selectbox("Select Event ID", event_ids.astype(str))
+    selected_tpc = st.selectbox("Select TPC", tpc_ids.astype(str))
+    event_id = int(selected_event)
+    tpc_id = int(selected_tpc)
+    drift = 1 if tpc_id % 2 else -1
 
-        try:
-            self.data = tree.arrays(["event_id", "x", "y", "z", "totN", "Q"], library="np")
-            self.unique_event_ids = np.unique(self.data["event_id"])
-            self.event_dropdown["values"] = self.unique_event_ids.astype(str)
-            self.event_dropdown["state"] = "readonly"
-            self.event_var.set(str(self.unique_event_ids[0]))
-            self.update_plots()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load branches:\n{e}")
+    tpcs = np.unique(arrays["io_group"][arrays["event_id"] == event_id])
+    st.code(f"Available tpcs for this event: {tpcs}", language="text")
+    st.code(f"Drift direction in this TPC: {drift}", language="text")
 
-    def update_plots(self, event=None):
-        if self.data is None:
-            return
+    filtered = (arrays["event_id"] == event_id) & (arrays["io_group"] == tpc_id)
+    x, y, z, totN = arrays["x"][filtered], arrays["y"][filtered], arrays["z"][filtered], arrays["totN"][filtered]
+    Q = arrays["Q"][filtered]
 
-        event_id = int(self.event_var.get())
-        mask = self.data["event_id"] == event_id
-        x = self.data["x"][mask]
-        y = self.data["y"][mask]
-        z = self.data["z"][mask]
-        totN = self.data["totN"][mask]
 
-        # Clear old plots
-        for ax in self.axs:
-            ax.clear()
+    # Marker controls
+    st.markdown("### Marker Style")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        # color1 = st.color_picker("Color for totN=1", "#1f77b4")
+        size1 = st.slider("Size for totN=1", 1, 100, 20)
+    with col2:
+        # color2 = st.color_picker("Color for totN=2", "#d62728")
+        size2 = st.slider("Size for totN=2", 1, 100, 5)
+    with col3:
+        # color3 = st.color_picker("Color for totN>2", "#2ca02c")
+        size3 = st.slider("Size for totN>2", 1, 100, 1)
 
-        for t in [1, 2]:
-            t_mask = totN == t
-            label = f"totN={t}"
-            self.axs[0].scatter(x[t_mask], y[t_mask], label=label)
-            self.axs[1].scatter(z[t_mask], y[t_mask], label=label)
-            self.axs[2].scatter(x[t_mask], z[t_mask], label=label)
+    # Categories
+    masks = {
+        "totN=1": (totN == 1, size1),
+        "totN=2": (totN == 2, size2),
+        "totN>2": (totN > 2, size3),
+    }
 
-        self.axs[0].set_xlabel("X"); self.axs[0].set_ylabel("Y")
-        self.axs[1].set_xlabel("Z"); self.axs[1].set_ylabel("Y")
-        self.axs[2].set_xlabel("X"); self.axs[2].set_ylabel("Z")
-        for ax in self.axs:
-            ax.legend()
-        self.fig.tight_layout()
-        self.canvas.draw()
-
-# --- Run GUI ---
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = TTreeViewer(root)
-    root.mainloop()
-
+    if len(Q):
+        Q_min, Q_max = np.min(Q), np.max(Q)
+    else:
+        Q_min, Q_max = 0, 100
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.plotly_chart(create_scatter(x, y, Q, masks, "X", "Y", Q_min, Q_max), use_container_width=True, show_colorbar=True)
+    with col2:
+        st.plotly_chart(create_scatter(z, y, Q, masks, "Z", "Y", Q_min, Q_max), use_container_width=True)
+    with col3:
+        st.plotly_chart(create_scatter(x, z, Q, masks, "X", "Z", Q_min, Q_max), use_container_width=True)
