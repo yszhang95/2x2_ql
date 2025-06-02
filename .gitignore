@@ -1,0 +1,11 @@
+**.hdf5
+**.h5
+**.root
+**.png
+**.pdf
+**.venv
+**.lock
+**checkpoints
+**.python-version
+**.npz
+**.npy

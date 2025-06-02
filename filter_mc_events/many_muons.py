@@ -10,6 +10,7 @@ import os
 import h5py
 from collections import defaultdict
 import numpy.lib.recfunctions as rfn
+import sys
 
 def export_event_array(npz_path, prefix):
     f = np.load(npz_path)
@@ -67,23 +68,27 @@ def export_event_array(npz_path, prefix):
 #         g.create_dataset('tpc_id', data=arrs[3])
 #         g.create_dataset('grid_index', data=arrs[4])
 #output_dir = './nonoise_pid13_unipolar'
-output_dir = './nonoise_pid13'
+# output_dir = './nonoise_pid13'
+infile = sys.argv[1]
+output_dir = sys.argv[2]
 with h5py.File(f'{output_dir}/many_muon_hits.hdf5', 'w') as fout:
     # pos, qs, eids, tids, inds = export_event_array("/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/waveforms.npz", ".", prefix='hits')
     # pos, qs, eids, tids, inds = export_event_array("nonoise_pid13_unipolar/waveforms_nonoise_pid13_unipolar.npz", prefix='hits')
-    pos, qs, eids, tids, inds = export_event_array("nonoise_pid13/waveforms_pid13_ndlar.npz", prefix='hits')
+    # pos, qs, eids, tids, inds = export_event_array("nonoise_pid13/waveforms_pid13_ndlar.npz", prefix='hits')
+    pos, qs, eids, tids, inds = export_event_array(infile, prefix='hits')
     io_group = tids # there might be mismatch
-    io_channel = inds[:,0] * 5000 + inds[:,1]
+    flatten_index = inds[:,0] * 5000 + inds[:,1]
+    flatten_stride = np.full_like(flatten_index, fill_value=5000)
     # print(io_group.shape, io_channel.shape, inds.shape)
     pos_dtype = {
         'x': 'f4',
         'y': 'f4',
         'z': 'f4',
     }
-    t_drift = inds[:,3].astype(np.float32) * 0.05
+    t_drift = inds[:,2].astype(np.float32) * 0.05
     # print(t_drift.max()/0.05)
     # uqc, inv = np.unique(io_group*100000000 + io_channel, return_inverse=True)
-    chid = np.stack([io_group, io_channel, eids], axis=1)
+    chid = np.stack([io_group, flatten_index, eids], axis=1)
     # print(chid.shape)
     uqc, inv = np.unique(chid, return_inverse=True, axis=0)
     # print(inv.shape)
@@ -95,10 +100,8 @@ with h5py.File(f'{output_dir}/many_muon_hits.hdf5', 'w') as fout:
     pos = np.core.records.fromarrays(pos.T, names='x,y,z', formats='f4,f4,f4')
     hits = np.array(pos)
 
-    hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs/1E3, t_drift], usemask=False)
-    hits = rfn.append_fields(hits, names=['io_group', 'io_channel', 'event_id'], data=[io_group, io_channel, eids], usemask=False)
+    # hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs/1E3, t_drift], usemask=False)
+    hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs, t_drift], usemask=False)
+    hits = rfn.append_fields(hits, names=['io_group', 'flatten_index', 'flatten_stride', 'event_id'], data=[io_group, flatten_index, flatten_stride, eids], usemask=False)
 
     fout.create_dataset('hits', data=hits)
-
-
-
