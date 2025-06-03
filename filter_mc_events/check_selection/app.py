@@ -13,7 +13,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
 app.layout = dbc.Container([
-    html.H2("YZ Interactive Plot from HDF5"),
+    html.H2("Interactive Projection Plots from HDF5"),
     dbc.Row([
         dbc.Col([dcc.Upload(
             id='upload-data',
@@ -32,6 +32,18 @@ app.layout = dbc.Container([
         ])
     ]),
     html.Div(id='filepath-display', style={'marginTop': '10px', 'fontStyle': 'italic'}),
+    html.Div([
+        html.Span("Hit Color", style={"margin-right": "10px", "align-self": "center"}),
+        dcc.RadioItems(
+            id='hit-color-style',
+            options=[
+                {'label': 'Category', 'value': 'category'},
+                {'label': 'totQ', 'value': 'totQ'}
+            ],
+            value='category',  # initial selection
+            labelStyle={'display': 'inline-block', 'margin-left': '15px'}
+        ),
+    ], style={"display": "flex", "align-items": "center", "margin-bottom": "20px"}),
     dcc.Store(id='memory-path'),
     dcc.Graph(id='yz-plot'),
     dcc.Graph(id='xz-plot'),
@@ -99,9 +111,10 @@ def save_uploaded_file(contents, filename):
     Input('update-button', 'n_clicks'),
     State('qmin', 'value'),
     State('qmax', 'value'),
-    State('memory-path', 'data')
+    State('memory-path', 'data'),
+    Input('hit-color-style', 'value')
 )
-def update_plot(n_clicks, qmin, qmax, filepath):
+def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     if not filepath or not os.path.exists(filepath):
         return go.Figure(), go.Figure()
 
@@ -116,13 +129,11 @@ def update_plot(n_clicks, qmin, qmax, filepath):
     def has_data(data):
         return len(data) > 0
     colorbar_label = next((name for name, data in zip(['selected-marked', 'selected-unmarked', 'deselected'], [marked, unmarked, deselected]) if has_data(data)), None)
+    colors = {'deselected': 'grey', 'selected-marked' : 'red', 'selected-unmarked' : 'blue'}
 
     def make_trace(name, data):
-        return go.Scatter(
-            x=[d['y'] for d in data],
-            y=[d['z'] for d in data],
-            mode='markers',
-            marker=dict(
+        if 'totQ' in hit_color_style:
+            marker = dict(
                 size=[5+2*d['totN'] for d in data],
                 color=[d['totQ'] for d in data],
                 colorscale='Viridis',
@@ -130,7 +141,17 @@ def update_plot(n_clicks, qmin, qmax, filepath):
                 cmax=qmax_val,
                 showscale = True,
                 colorbar = dict(title='totQ')
-            ),
+            )
+        else:
+            marker = dict(
+                size=[5+2*d['totN'] for d in data],
+                color = colors[name],
+            )
+        return go.Scatter(
+            x=[d['y'] for d in data],
+            y=[d['z'] for d in data],
+            mode='markers',
+            marker = marker,
             text=[f"totQ: {d['totQ']}<br>totN: {d['totN']}" for d in data],
             hovertemplate="%{text}<br>Y: %{x}<br>Z: %{y}<extra></extra>",
             name=name
@@ -139,8 +160,8 @@ def update_plot(n_clicks, qmin, qmax, filepath):
     fig = go.Figure([
         # make_trace("selected", sel_red),
         make_trace("deselected", desel_red),
+        make_trace("selected-unmarked", unmarked),
         make_trace("selected-marked", marked),
-        make_trace("selected-unmarked", unmarked)
     ])
 
     all_x = [d['x'] for d in sel_red + desel_red ]
@@ -162,11 +183,8 @@ def update_plot(n_clicks, qmin, qmax, filepath):
     )
 
     def make_trace_xz(name, data):
-        return go.Scatter(
-            x=[d['x'] for d in data],
-            y=[d['z'] for d in data],
-            mode='markers',
-            marker=dict(
+        if 'totQ' in hit_color_style:
+            marker = dict(
                 size=[5+2*d['totN'] for d in data],
                 color=[d['totQ'] for d in data],
                 colorscale='Viridis',
@@ -174,15 +192,26 @@ def update_plot(n_clicks, qmin, qmax, filepath):
                 cmax=qmax_val,
                 showscale = True,
                 colorbar = dict(title='totQ')
-            ),
+            )
+        else:
+            marker = dict(
+                size=[5+2*d['totN'] for d in data],
+                color = colors[name],
+            )
+        return go.Scatter(
+            x=[d['x'] for d in data],
+            y=[d['z'] for d in data],
+            mode='markers',
+            marker = marker,
             text=[f"totQ: {d['totQ']}<br>totN: {d['totN']}" for d in data],
             hovertemplate="%{text}<br>X: %{x}<br>Z: %{y}<extra></extra>",
             name=name
         )
+
     figxz = go.Figure([
         make_trace_xz("deselected", desel_red),
+        make_trace_xz("selected-unmarked", unmarked),
         make_trace_xz("selected-marked", marked),
-        make_trace_xz("selected-unmarked", unmarked)
     ])
 
     figxz.update_layout(
