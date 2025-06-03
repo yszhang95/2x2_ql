@@ -75,6 +75,14 @@ void draw_totQ(const bool uselength){
     leg->AddEntry(htotQ_tred, "tred");
     leg->Draw();
     if (uselength) {
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
+        auto d_tred = sum_total_length("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotQ_2x2->Integral(), d_2x2));
+        tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotQ_tred->Integral(), d_tred));
+    }
+    if (uselength) {
         c1->Print("comp_totQ_norm_by_l.png");
     } else {
         c1->Print("comp_totQ.png");
@@ -88,7 +96,7 @@ void draw_totN(const bool uselength){
     auto htotN_tred = draw_from_tree("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
     htotN_tred->SetName("htotN_tred");
     TCanvas* c2 = new TCanvas("ctotN", "totN", 800, 600);
-    htotN_2x2->SetTitle("total Q per pixel;totN;normalized counts");
+    htotN_2x2->SetTitle("total N per pixel;totN;normalized counts");
     if (uselength) {
         auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
         auto d_tred = sum_total_length("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/distances");
@@ -108,9 +116,58 @@ void draw_totN(const bool uselength){
     leg->AddEntry(htotN_tred, "tred");
     leg->Draw();
     if (uselength) {
+        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
+        auto d_tred = sum_total_length("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
+        tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotN_tred->Integral(), d_tred));
+    }
+    if (uselength) {
         c2->Print("comp_totN_norm_by_l.png");
     } else {
         c2->Print("comp_totN.png");
+    }
+}
+
+void draw_totN_totQ24(const bool uselength){
+
+    auto htotN_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
+    htotN_2x2->SetName("htotNtotQ24_2x2");
+    auto htotN_tred = draw_from_tree("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
+    htotN_tred->SetName("htotNtotQ24_tred");
+    TCanvas* c2 = new TCanvas("ctotN", "totN", 800, 600);
+    htotN_2x2->SetTitle("total N per pixel,totQ>24;totN;normalized counts");
+    if (uselength) {
+        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
+        auto d_tred = sum_total_length("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        htotN_2x2->Scale(1./d_2x2);
+        htotN_tred->Scale(1./d_tred);
+    } else {
+        htotN_2x2->Scale(1./htotN_2x2->GetEntries());
+        htotN_tred->Scale(1./htotN_tred->GetEntries());
+    }
+    htotN_2x2->GetYaxis()->SetRangeUser(0, 1.2* std::max(htotN_2x2->GetMaximum(), htotN_tred->GetMaximum()));
+    htotN_2x2->Draw();
+    htotN_2x2->SetLineColor(kRed);
+    htotN_tred->Draw("SAME");
+    htotN_tred->SetLineColor(kBlue);
+    TLegend * leg = new TLegend(0.5, 0.7, 0.8, 0.85);
+    leg->AddEntry(htotN_2x2, "2x2");
+    leg->AddEntry(htotN_tred, "tred");
+    leg->Draw();
+    if (uselength) {
+        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
+        auto d_tred = sum_total_length("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
+        tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotN_tred->Integral(), d_tred));
+    }
+    if (uselength) {
+        c2->Print("comp_totNtotQ24_norm_by_l.png");
+    } else {
+        c2->Print("comp_totNtotQ24.png");
     }
 }
 
@@ -140,6 +197,12 @@ void draw_totQ_totN1(const bool uselength){
     leg->AddEntry(htotQ_2x2, "2x2");
     leg->AddEntry(htotQ_tred, "tred");
     leg->Draw();
+    if (uselength) {
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
+        tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
+    }
     if (uselength) {
         c1->Print("comp_totQ_totN1_norm_by_l.png");
     } else {
@@ -174,6 +237,12 @@ void draw_totQ_totN2(const bool uselength){
     leg->AddEntry(htotQ_tred, "tred");
     leg->Draw();
     if (uselength) {
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
+        tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
+    }
+    if (uselength) {
         c1->Print("comp_totQ_totN2_norm_by_l.png");
     } else {
         c1->Print("comp_totQ_totN2.png");
@@ -206,6 +275,12 @@ void draw_totQ_totN3(const bool uselength){
     leg->AddEntry(htotQ_2x2, "2x2");
     leg->AddEntry(htotQ_tred, "tred");
     leg->Draw();
+    if (uselength) {
+        TLatex *tex = new TLatex();
+        tex->SetTextFont(42);
+        tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
+        tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
+    }
     if (uselength) {
         c1->Print("comp_totQ_totN3_norm_by_l.png");
     } else {
@@ -250,6 +325,7 @@ void draw_totQ_totN(bool uselength=false){
     gStyle->SetOptStat(0);
     draw_totQ(uselength);
     draw_totN(uselength);
+    draw_totN_totQ24(uselength);
     draw_totQ_totN1(uselength);
     draw_totQ_totN2(uselength);
     draw_totQ_totN3(uselength);
