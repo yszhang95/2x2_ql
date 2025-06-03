@@ -209,14 +209,16 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z'):
             accQ[idxs[sorted_indices[i]]] = np.float64(q)
             if i == 0:
                 try:
-                    thres = thresholds[io_group_idx]
-                except ValueError:
+                    thres = float(thresholds[io_group_idx])
+                except TypeError:
                     if ismc:
                         iy = d['flatten_index'][0] // d['flatten_stride'][0]
                         iz = d['flatten_index'][0] % d['flatten_stride'][0]
                     else:
                         raise NotImplementedError()
                     thres = thresholds[io_group_idx][iy, iz]
+                    # print(iy, iz)
+                # print(thres)
                 if thres < 2:
                     thres = 1E16
                 avg_i[idxs[sorted_indices[i]]] = (d['Q'][sorted_indices[i]]-thres)/17
@@ -238,30 +240,8 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z'):
     extended_hits = rfn.append_fields(extended_hits, names=['tinterval', 'tindex'], data=[tinterval, tindex], usemask=False)
     return uni_pxl, extended_hits
 
-# dtype = np.dtype([
-#     ('x', 'f4'),           # float32
-#     ('y', 'f4'),
-#     ('z', 'f4'),
-#     ('Q', 'f4'),
-#     ('t_drift', 'f8'),     # float64
-#     ('io_group', 'i4'),    # int32
-#     ('io_channel', 'i4'),
-#     ('event_id', 'i4')
-# ])
-
-# Use existing functions from your provided code: split_sorted_dataset, sel_uni_pxl, yz_line, proj_yz, xline, plot_three_views
-
-
 def prep_per_event(hits, itpc=None, highq_thres=None):
 
-    # dtype = np.dtype([
-    #     ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
-    #     ('Q', 'f4'), ('t_drift', 'f8'),
-    #     ('io_group', 'i4'), ('io_channel', 'i8'),
-    #     ('event_id', 'i4'), ('drift_direction', 'i4'),
-    # ])
-
-    # uni_pxls, extended_hits = sel_uni_pxl(hits, att='t_drift', yposlabel='io_channel', zposlabel='io_channel')
     uni_pxls, extended_hits = sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z')
 
     k_yz, b_yz, tg_yz = yz_line(uni_pxls)
@@ -290,9 +270,10 @@ def prep_per_event(hits, itpc=None, highq_thres=None):
         return np.array([], dtype=extended_hits.dtype)
     return extended_hits
 
-# fdir = "nonoise_pid13_unipolar"
-# fdir = "nonoise_pid13"
-fdir = sys.argv[1]
+finpath = sys.argv[1]
+fdir = os.path.dirname(finpath)
+ffname = os.path.basename(finpath)
+fprefix = os.path.splitext(ffname)[0]
 threshold = sys.argv[2]
 try:
     ismc = bool(sys.argv[3])
@@ -300,18 +281,19 @@ except IndexError:
     ismc = True
 if not ismc:
     raise NotImplementedError()
-fprefix = "many_muon_hits"
 
 load_threshold(threshold)
 with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
 
     # Load file once
-    fh5 = h5py.File(f'{fdir}/{fprefix}.hdf5', 'r')
-    hits = fh5['hits'][:]
+    fh5 = h5py.File(f'{finpath}', 'r')
+    # hits = fh5['/selected/hits'][:]
+    hits = fh5['/selected/hits/data'][:]
     eids = hits['event_id']
     hits = hits[np.argsort(eids)]
     groups = list(split_sorted_dataset(eids))
     out_hits = []
+    distances = []
     for ie in range(len(groups)):
         for itpc in range(70):
             sel_hits = hits[groups[ie][1]]
@@ -321,6 +303,10 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             extended_hits = prep_per_event(sel_hits)
             if len(extended_hits) < 10:
                 continue
+            xyz = np.vstack([extended_hits['x'], extended_hits['y'], extended_hits['z']]).T
+            max_dist = np.max(pdist(xyz))
+            distances.append(float(max_dist))
             out_hits.append(extended_hits)
     #f[f'event{ie}/hits'] = hits
     f['mu_ndlar/hits'] = np.concatenate(out_hits)
+    f['mu_ndlar/distances'] = { "distance" : np.array(distances)}

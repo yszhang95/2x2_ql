@@ -15,7 +15,7 @@ with open('web/event_list.txt', 'r') as fin:
                 out = ds
             else:
                 out = rfn.append_fields(np.array(ds, dtype=ds.dtype), names=['event_id',], data=[np.full((len(ds), ), fill_value=int(l)),], usemask=False)
-            out['Q'] = out['Q'] / 1E3
+            out['Q'] = out['Q']
             print(out['Q'][0])
 
             out_arr.append(out)

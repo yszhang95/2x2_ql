@@ -39,7 +39,7 @@ void draw_QvsThres(std::string filename, std::string treename, std::string label
     // c1->SetLogz();
     c1->Update();
     c1->Print(::Form("QvsThres_totN%d_%s.png", totN, label.c_str()));  // Save as image
-    c1->Print(::Form("QvsThres_totN%d_%s.pdf", totN, label.c_str()));  // Save as image
+    // c1->Print(::Form("QvsThres_totN%d_%s.pdf", totN, label.c_str()));  // Save as image
 }
 
 void draw_QvsThres_totN()
@@ -48,6 +48,6 @@ void draw_QvsThres_totN()
     draw_QvsThres("../track_data.root", "selected_data/hits", "2x2", 1);
     draw_QvsThres("../track_data.root", "selected_data/hits", "2x2", 2);
 
-    draw_QvsThres("../lifetime1ms/many_muon_hits.root", "mu_ndlar/hits", "tred", 1);
-    draw_QvsThres("../lifetime1ms/many_muon_hits.root", "mu_ndlar/hits", "tred", 2);
+    draw_QvsThres("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/hits", "tred", 1);
+    draw_QvsThres("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/hits", "tred", 2);
 }

@@ -26,13 +26,15 @@ app.layout = dbc.Container([
             multiple=False
         )], width=6),
         dbc.Col([
-            dbc.Input(id='qmin', type='number', placeholder='Q min', value=10),
+            dbc.Input(id='qmin', type='number', placeholder='Q min', value=25),
             dbc.Input(id='qmax', type='number', placeholder='Q max', value=100),
             dbc.Button("Update Plot", id="update-button", className="mt-2", color="primary")
         ])
     ]),
+    html.Div(id='filepath-display', style={'marginTop': '10px', 'fontStyle': 'italic'}),
     dcc.Store(id='memory-path'),
-    dcc.Graph(id='yz-plot')
+    dcc.Graph(id='yz-plot'),
+    dcc.Graph(id='xz-plot'),
 ])
 
 
@@ -49,17 +51,20 @@ def reduce_hits(hits):
     yz = np.stack((y, z), axis=1)
     if len(yz) <= 1:
         return []
-    clustering = DBSCAN(eps=0.001, min_samples=1).fit(yz)
-    labels = clustering.labels_
-    grouped = defaultdict(lambda: {'totQ': 0.0, 'totN': 0})
+    # clustering = DBSCAN(eps=0.001, min_samples=1).fit(yz)
+    # labels = clustering.labels_
+    grouped = defaultdict(lambda: {'totQ': 0.0, 'totN': 0, 'x' : 0})
 
-    for i, label in enumerate(labels):
+    for i, yzval in enumerate(yz):
         key = tuple(yz[i])
         grouped[key]['totQ'] += hits['Q'][i]
         grouped[key]['totN'] += 1
+        grouped[key]['x'] += hits['x'][i]
+    for k,v in grouped.items():
+        grouped[k]['x'] = v['x']/v['totN']
 
     return [
-        {"y": float(k[0]), "z": float(k[1]), "totQ": float(v['totQ']), "totN": int(v['totN'])}
+        {"x" : float(v['x']), "y": float(k[0]), "z": float(k[1]), "totQ": float(v['totQ']), "totN": int(v['totN'])}
         for k, v in grouped.items()
     ]
 
@@ -70,12 +75,13 @@ def filter_marked(hits, qmin, qmax):
 
 @app.callback(
     Output('memory-path', 'data'),
+    Output('filepath-display', 'children'),
     Input('upload-data', 'contents'),
     State('upload-data', 'filename')
 )
 def save_uploaded_file(contents, filename):
     if contents is None:
-        return dash.no_update
+        return dash.no_update, ""
     content_type, content_string = contents.split(',')
     import base64
     import io
@@ -84,11 +90,12 @@ def save_uploaded_file(contents, filename):
     os.makedirs('uploads', exist_ok=True)
     with open(filepath, 'wb') as f:
         f.write(decoded)
-    return filepath
+    return filepath, f"Loaded file: {filepath}"
 
 
 @app.callback(
     Output('yz-plot', 'figure'),
+    Output('xz-plot', 'figure'),
     Input('update-button', 'n_clicks'),
     State('qmin', 'value'),
     State('qmax', 'value'),
@@ -96,7 +103,7 @@ def save_uploaded_file(contents, filename):
 )
 def update_plot(n_clicks, qmin, qmax, filepath):
     if not filepath or not os.path.exists(filepath):
-        return go.Figure()
+        return go.Figure(), go.Figure()
 
     selected, deselected = load_hits_from_hdf5(filepath)
     sel_red = reduce_hits(selected)
@@ -106,35 +113,43 @@ def update_plot(n_clicks, qmin, qmax, filepath):
     all_q = [d['totQ'] for d in sel_red + desel_red ]
     qmin_val, qmax_val = min(all_q), max(all_q)
 
+    def has_data(data):
+        return len(data) > 0
+    colorbar_label = next((name for name, data in zip(['selected-marked', 'selected-unmarked', 'deselected'], [marked, unmarked, deselected]) if has_data(data)), None)
+
     def make_trace(name, data):
         return go.Scatter(
             x=[d['y'] for d in data],
             y=[d['z'] for d in data],
             mode='markers',
             marker=dict(
-                size=[d['totN'] for d in data],
+                size=[5+2*d['totN'] for d in data],
                 color=[d['totQ'] for d in data],
                 colorscale='Viridis',
                 cmin=qmin_val,
                 cmax=qmax_val,
-                showscale=True if name == 'marked' else False,
-                colorbar=dict(title='totQ') if name == 'marked' else None
+                showscale = True,
+                colorbar = dict(title='totQ')
             ),
+            text=[f"totQ: {d['totQ']}<br>totN: {d['totN']}" for d in data],
+            hovertemplate="%{text}<br>Y: %{x}<br>Z: %{y}<extra></extra>",
             name=name
         )
 
     fig = go.Figure([
-        make_trace("selected", sel_red),
+        # make_trace("selected", sel_red),
         make_trace("deselected", desel_red),
-        make_trace("marked", marked),
-        make_trace("unmarked", unmarked)
+        make_trace("selected-marked", marked),
+        make_trace("selected-unmarked", unmarked)
     ])
 
+    all_x = [d['x'] for d in sel_red + desel_red ]
     all_y = [d['y'] for d in sel_red + desel_red ]
     all_z = [d['z'] for d in sel_red + desel_red ]
 
-    y_min, y_max = min(all_y), max(all_y)
-    z_min, z_max = min(all_z), max(all_z)
+    x_min, x_max = -3+min(all_x), 3+max(all_x)
+    y_min, y_max = -3+min(all_y), 3+max(all_y)
+    z_min, z_max = -3+min(all_z), 3+max(all_z)
 
     fig.update_layout(
         title="YZ Projection: size ~ totN, color ~ totQ",
@@ -142,10 +157,44 @@ def update_plot(n_clicks, qmin, qmax, filepath):
         yaxis=dict(title="Z", range=[z_min, z_max]),
         legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
         legend_title="Hit Types",
-        height=700,
-        width=700
+        height=800,
+        width=800
     )
-    return fig
+
+    def make_trace_xz(name, data):
+        return go.Scatter(
+            x=[d['x'] for d in data],
+            y=[d['z'] for d in data],
+            mode='markers',
+            marker=dict(
+                size=[5+2*d['totN'] for d in data],
+                color=[d['totQ'] for d in data],
+                colorscale='Viridis',
+                cmin=qmin_val,
+                cmax=qmax_val,
+                showscale = True,
+                colorbar = dict(title='totQ')
+            ),
+            text=[f"totQ: {d['totQ']}<br>totN: {d['totN']}" for d in data],
+            hovertemplate="%{text}<br>X: %{x}<br>Z: %{y}<extra></extra>",
+            name=name
+        )
+    figxz = go.Figure([
+        make_trace_xz("deselected", desel_red),
+        make_trace_xz("selected-marked", marked),
+        make_trace_xz("selected-unmarked", unmarked)
+    ])
+
+    figxz.update_layout(
+        title="XZ Projection: size ~ totN, color ~ totQ",
+        xaxis=dict(title="X", range=[x_min, x_max]),
+        yaxis=dict(title="Z", range=[z_min, z_max]),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+        legend_title="Hit Types",
+        height=800,
+        width=800
+    )
+    return fig, figxz
 
 
 if __name__ == '__main__':

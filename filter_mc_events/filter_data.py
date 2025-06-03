@@ -260,6 +260,7 @@ with uproot.recreate('track_data.root') as f:
     groups = list(split_sorted_dataset(data['event_id']))
 
     out_hits = []
+    distances = []
     for g, slc in groups:
         dg = data[slc]
         for itpc in [1,2,3,4,7,8]:
@@ -269,6 +270,10 @@ with uproot.recreate('track_data.root') as f:
             hits = prep_per_event(inhits)
             if len(hits) < 20:
                 continue
-        out_hits.append(hits)
+            xyz = np.vstack([hits['x'], hits['y'], hits['z']]).T
+            max_dist = np.max(pdist(xyz))
+            distances.append(float(max_dist))
+            out_hits.append(hits)
     f['selected_data/hits'] = np.concatenate(out_hits)
+    f['selected_data/distances'] = { "distance" : np.array(distances)}
 

@@ -66,7 +66,7 @@ std::pair<TH2F*, TH1F*> get_hists(std::string fname, std::string treename, std::
 void draw_AvgCurrVsDx(){
                                    //
     auto hists_2x2 = get_hists("../track_data.root", "selected_data/hits", "2x2");
-    auto hists_tred = get_hists("../lifetime1ms/many_muon_hits.root", "mu_ndlar/hits", "tred");
+    auto hists_tred = get_hists("../lifetime1ms/many_muon_hits_selected.root", "mu_ndlar/hits", "tred");
     
 }
 

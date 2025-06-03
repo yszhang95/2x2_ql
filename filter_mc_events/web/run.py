@@ -124,7 +124,7 @@ def change_event(prev_clicks, next_clicks, current_value):
 )
 def compute_nearby(n_clicks, line_data, event_id, threshold):
     if not line_data or len(line_data) < 2:
-        return {'in': [], 'out': []}, "No line selected"
+        return {'in': [], 'out': []}
 
     p0, p1 = np.array(line_data[0]), np.array(line_data[1])
     subdf = df[df['event_id'] == event_id]
@@ -179,6 +179,16 @@ def update_line(n_clicks, event_id, picked):
     return []
 
 @app.callback(
+    Output('picked-store', 'data', allow_duplicate=True),
+    Output('line-store', 'data', allow_duplicate=True),
+    Output('nearby-store', 'data', allow_duplicate=True),
+    Input('event-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def clear_on_event_change(event_id):
+    return [], [], {'in': [], 'out': []}
+
+@app.callback(
     Output('event-graph', 'figure'),
     Input('event-dropdown', 'value'),
     Input('line-store', 'data'),
@@ -188,18 +198,6 @@ def update_display(event_id, line_data, nearby_data):
     subdf = df[df['event_id'] == event_id]
     fig = go.Figure()
 
-    # for group in np.unique(subdf['io_group']):
-    #     group_df = subdf[subdf['io_group'] == group]
-    #     fig.add_trace(go.Scatter3d(
-    #         x=group_df['x'], y=group_df['y'], z=group_df['z'],
-    #         mode='markers',
-    #         marker=dict(
-    #             size=3,
-    #             color=group_df['Q'],
-    #             coloraxis='coloraxis'  # Shared color scale
-    #         ),
-    #         name=f'io_group {group}'
-    #     ))
     fig.add_trace(go.Scatter3d(
         x=subdf['x'], y=subdf['y'], z=subdf['z'],
         mode='markers',
@@ -210,6 +208,9 @@ def update_display(event_id, line_data, nearby_data):
         ),
         name='all hits'
     ))
+    xmin, xmax = -2+np.min(subdf["x"]), 2+np.max(subdf["x"])
+    ymin, ymax = -2+np.min(subdf["y"]), 2+np.max(subdf["y"])
+    zmin, zmax = -2+np.min(subdf["z"]), 2+np.max(subdf["z"])
 
     # Draw line if present
     if line_data and len(line_data) == 2:
@@ -257,6 +258,14 @@ def update_display(event_id, line_data, nearby_data):
             y=-0.2,
             xanchor='center',
             x=0.5
+        ),
+        scene=dict(
+            # xaxis=dict(range=[-80, 80], title='x'),
+            # yaxis=dict(range=[-80, 80], title='y'),
+            # zaxis=dict(range=[-80, 80], title='z')
+            xaxis=dict(range=[xmin, xmax], title='x'),
+            yaxis=dict(range=[ymin, ymax], title='y'),
+            zaxis=dict(range=[zmin, zmax], title='z')
         )
     )
     return fig

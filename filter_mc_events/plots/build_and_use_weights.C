@@ -14,7 +14,7 @@
 // ------------------------------------------------------------------
 namespace cfg {
   constexpr const char* file2x2   = "../track_data.root";
-  constexpr const char* filetred  = "../lifetime1ms/many_muon_hits.root";
+  constexpr const char* filetred  = "../lifetime1ms/many_muon_hits_selected.root";
   constexpr const char* tree2x2   = "selected_data/hits";
   constexpr const char* treetred  = "mu_ndlar/hits";
   constexpr int    nThresBins     = 64;      // change if you want
