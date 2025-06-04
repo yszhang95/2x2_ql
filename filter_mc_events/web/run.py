@@ -1,37 +1,79 @@
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, State
 import h5py
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
+import sys
 
 # Load HDF5 data once
-source_file = "many_muon_hits.hdf5"
-with h5py.File(source_file, 'r') as f:
-    hits = f['hits'][:]
-
-# Convert to DataFrame for ease of filtering
-df = pd.DataFrame(hits)
-df['event_id'] = df['event_id'].astype(int)
-df['io_group'] = df['io_group'].astype(int)
-
-# Get unique event_ids
-event_ids = sorted(df['event_id'].unique())
+df = None
+event_ids = []
 
 # Build Dash app
 app = dash.Dash(__name__)
-from dash import State
+
+@app.callback(
+    Output('h5f-load-status', 'children'),
+    Output('event-dropdown', 'value', allow_duplicate=True),
+    Output('event-dropdown', 'options'),
+    Input('load-button', 'n_clicks'),
+    State('h5f-path-input', 'value'),
+    prevent_initial_call=True,
+)
+def load_data(n_clicks, path):
+    global df
+    global event_ids
+    source_file = path
+    istred = False
+    isnd = False
+    with h5py.File(source_file, 'r') as f:
+        if '/hits' in f:
+            hits = f['hits'][:]
+            istred = True
+        elif 'charge/calib_prompt_hits' in f and 'charge/events/' in f:
+            isnd = True
+            hits = f['charge/calib_prompt_hits/data'][:]
+            hits = hits[['id', 'x', 'y', 'z', 't_drift', 'ts_pps',
+                         'io_group', 'io_channel', 'chip_id', 'channel_id', 'Q', 'E']]
+            event_id = f['/charge/events/ref/charge/calib_prompt_hits/ref'][:,0][np.argsort(f['/charge/events/ref/charge/calib_prompt_hits/ref'][:,1])]
+        else:
+            return f"Not found valid data in {path}", None, []
+
+    # Convert to DataFrame for ease of filtering
+    if istred:
+        df = pd.DataFrame(hits)
+        df['event_id'] = df['event_id'].astype(int)
+        df['io_group'] = df['io_group'].astype(int)
+    elif isnd:
+        df = pd.DataFrame.from_records(hits)
+        df['event_id'] = event_id
+        df['io_group'] = df['io_group'].astype(int)
+    # Get unique event_ids
+    event_ids = sorted(df['event_id'].unique())
+    return f"Loaded hits from {path}", event_ids[0], event_ids
 
 app.layout = html.Div([
     html.H2("Event Display"),
+    html.Div([
+        html.Label("Enter HDF5 file path:"),
+        dcc.Input(
+            id='h5f-path-input',
+            type='text',
+            placeholder='/group1/my_dataset',
+            debounce=True,  # update only after user finishes typing
+            style={'width': '300px', 'margin-right': '10px'}
+        ),
+        html.Button("Load File", id='load-button', n_clicks=0),
+    ]),
+    html.Div(id='h5f-load-status', style={'margin-top': '15px'}),
     html.Div([
         html.Button('Previous', id='prev-button', n_clicks=0),
         dcc.Dropdown(
             id='event-dropdown',
             options=[{'label': str(eid), 'value': eid} for eid in event_ids],
-            value=event_ids[0],
+            value = event_ids[0] if len(event_ids) else 0,
             style={'width': '200px', 'display': 'inline-block', 'margin': '0 10px'}
         ),
         html.Button('Next', id='next-button', n_clicks=0),
@@ -107,7 +149,10 @@ def change_event(prev_clicks, next_clicks, current_value):
         return current_value
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    idx = event_ids.index(current_value)
+    if current_value:
+        idx = event_ids.index(current_value)
+    else:
+        idx = event_ids[0]
     if button_id == 'prev-button':
         idx = max(idx - 1, 0)
     elif button_id == 'next-button':
@@ -120,9 +165,10 @@ def change_event(prev_clicks, next_clicks, current_value):
     State('line-store', 'data'),
     State('event-dropdown', 'value'),
     State('distance-threshold', 'value'),
+    State('h5f-path-input', 'value'),
     prevent_initial_call=True
 )
-def compute_nearby(n_clicks, line_data, event_id, threshold):
+def compute_nearby(n_clicks, line_data, event_id, threshold, source_file):
     if not line_data or len(line_data) < 2:
         return {'in': [], 'out': []}
 
@@ -192,10 +238,13 @@ def clear_on_event_change(event_id):
     Output('event-graph', 'figure'),
     Input('event-dropdown', 'value'),
     Input('line-store', 'data'),
-    Input('nearby-store', 'data')
+    Input('nearby-store', 'data'),
 )
 def update_display(event_id, line_data, nearby_data):
-    subdf = df[df['event_id'] == event_id]
+    if event_id is not None:
+        subdf = df[df['event_id'] == event_id]
+    else:
+        return go.Figure()
     fig = go.Figure()
 
     fig.add_trace(go.Scatter3d(
@@ -271,5 +320,9 @@ def update_display(event_id, line_data, nearby_data):
     return fig
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    try:
+        port = sys.argv[1]
+    except:
+        port = 8050
+    app.run(debug=True, port=port)
 

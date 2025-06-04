@@ -227,6 +227,6 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=8052)
 
 
