@@ -296,6 +296,8 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
     distances = []
     for ie in range(len(groups)):
         for itpc in range(70):
+            if itpc in [4,5]:
+                continue
             sel_hits = hits[groups[ie][1]]
             sel_hits = sel_hits[sel_hits['io_group'] == itpc]
             if len(sel_hits) < 10:

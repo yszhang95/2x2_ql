@@ -247,6 +247,7 @@ def prep_per_event(hits, highq_thres=None):
     dx *= sign
     extended_hits = rfn.append_fields(extended_hits, names='dx', data=dx, usemask=False)
     if not (para < 0.05):
+        print('filtered', para)
         # print(reg.coef_[0], reg.coef_[1])
         return np.array([], dtype=extended_hits.dtype)
     return extended_hits
@@ -255,6 +256,7 @@ def prep_per_event(hits, highq_thres=None):
 with uproot.recreate('track_data.root') as f:
 
     fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
+    # fh5 = h5py.File("web/many_muon_hits_selected.hdf5")
     dh5 = fh5['/selected/hits/data']
     data = dh5[:][np.argsort(dh5['event_id'])]
     groups = list(split_sorted_dataset(data['event_id']))
@@ -274,6 +276,6 @@ with uproot.recreate('track_data.root') as f:
             max_dist = np.max(pdist(xyz))
             distances.append(float(max_dist))
             out_hits.append(hits)
+    # print(out_hits)
     f['selected_data/hits'] = np.concatenate(out_hits)
     f['selected_data/distances'] = { "distance" : np.array(distances)}
-
