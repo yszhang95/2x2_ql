@@ -9,3 +9,5 @@
 **.python-version
 **.npz
 **.npy
+**__pycache__**
+**.bak
