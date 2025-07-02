@@ -32,6 +32,9 @@ def load_data(n_clicks, path):
         if '/hits' in f:
             hits = f['hits'][:]
             istred = True
+        elif '/effq' in f:
+            hits = f['effq'][:]
+            istred = True
         elif 'charge/calib_prompt_hits' in f and 'charge/events/' in f:
             isnd = True
             hits = f['charge/calib_prompt_hits/data'][:]

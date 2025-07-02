@@ -1,3 +1,12 @@
+static std::string data_path = "../track_data.root";
+// static std::string mc_path = "../pgun_pid13/many_muon_hits.root";
+// static std::string effq_path = "../pgun_pid13/many_muon_effq.root";
+// static std::string mc_path = "../pgun_pid13_constR/many_muon_hits.root";
+// static std::string effq_path = "../pgun_pid13_constR/many_muon_effq.root";
+// static std::string mc_path = "../pgun_pid13_transformed/many_muon_hits.root";
+// static std::string effq_path = "../pgun_pid13_transformed/many_muon_effq.root";
+static std::string mc_path = "../pgun_pid13_constR_transformed/many_muon_hits.root";
+static std::string effq_path = "../pgun_pid13_constR_transformed/many_muon_effq.root";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
     // Load the ROOT file
@@ -28,9 +37,9 @@ double sum_total_length(std::string filename, std::string treename){
 }
 
 void draw_dx(){
-    auto hdx_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "dx", "", 100, -2,3);
+    auto hdx_2x2 = draw_from_tree(data_path, "selected_data/hits", "dx", "", 100, -2,3);
     hdx_2x2->SetName("hdx_2x2");
-    auto hdx_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "dx", "", 100,-2,3);
+    auto hdx_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "dx", "", 100,-2,3);
     hdx_tred->SetName("hdx_tred");
     TCanvas* c1 = new TCanvas("cdx", "dx", 800, 600);
     hdx_2x2->SetTitle(";dx;normalized counts");
@@ -48,39 +57,74 @@ void draw_dx(){
     c1->Print("comp_dx.png");
 }
 
-void draw_totQ(const bool uselength){
+void draw_totQ(const bool uselength, const bool useqeff=true){
 
-    auto htotQ_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totQ", "tindex == 0");
+    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0");
     htotQ_2x2->SetName("htotQ_2x2");
-    auto htotQ_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totQ", "tindex == 0");
+    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0");
     htotQ_tred->SetName("htotQ_tred");
+    auto htotQ_effq = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 5000");
+    auto htotQ_effq2 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 3000");
+    auto htotQ_effq3 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 7000");
+    htotQ_effq->SetName("htotQ_effq");
     TCanvas* c1 = new TCanvas("ctotQ", "totQ", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel;totQ;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
+        auto d_effq = sum_total_length(effq_path, "mu_ndlar/distances");
         htotQ_2x2->Scale(1./d_2x2);
         htotQ_tred->Scale(1./d_tred);
+        if (useqeff) {
+            htotQ_effq->Scale(1./d_effq);
+            htotQ_effq2->Scale(1./d_effq);
+            htotQ_effq3->Scale(1./d_effq);
+        }
     } else {
         htotQ_2x2->Scale(1./htotQ_2x2->GetEntries());
         htotQ_tred->Scale(1./htotQ_tred->GetEntries());
+        if (useqeff) {
+            htotQ_effq->Scale(1./htotQ_effq->GetEntries());
+            htotQ_effq2->Scale(1./htotQ_effq2->GetEntries());
+            htotQ_effq3->Scale(1./htotQ_effq3->GetEntries());
+        }
     }
     htotQ_2x2->GetYaxis()->SetRangeUser(0, 1.2* std::max(htotQ_2x2->GetMaximum(), htotQ_tred->GetMaximum()));
     htotQ_2x2->Draw();
     htotQ_2x2->SetLineColor(kRed);
     htotQ_tred->Draw("SAME");
     htotQ_tred->SetLineColor(kBlue);
+
+    if (useqeff) {
+        htotQ_effq->Draw("HIST SAME");
+        htotQ_effq->SetLineColor(kGreen-3);
+        htotQ_effq->SetLineStyle(kDashed);
+
+        htotQ_effq2->Draw("HIST SAME");
+        htotQ_effq2->SetLineColor(kGreen+3);
+        htotQ_effq2->SetLineStyle(3);
+
+        htotQ_effq3->Draw("HIST SAME");
+        htotQ_effq3->SetLineColor(kGreen-5);
+        htotQ_effq3->SetLineStyle(4);
+    }
+
     TLegend * leg = new TLegend(0.5, 0.7, 0.8, 0.85);
     leg->AddEntry(htotQ_2x2, "2x2");
     leg->AddEntry(htotQ_tred, "tred");
+    if (useqeff) {
+        leg->AddEntry(htotQ_effq, "effq; totQ>5ke-");
+        leg->AddEntry(htotQ_effq2, "effq; totQ>3ke-");
+        leg->AddEntry(htotQ_effq3, "effq; totQ>7ke-");
+    }
     leg->Draw();
     if (uselength) {
         TLatex *tex = new TLatex();
         tex->SetTextFont(42);
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
-        tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotQ_2x2->Integral(), d_2x2));
-        tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotQ_tred->Integral(), d_tred));
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
+        // tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotQ_2x2->Integral(), d_2x2));
+        // tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotQ_tred->Integral(), d_tred));
     }
     if (uselength) {
         c1->Print("comp_totQ_norm_by_l.png");
@@ -91,15 +135,15 @@ void draw_totQ(const bool uselength){
 
 void draw_totN(const bool uselength){
 
-    auto htotN_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
+    auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
     htotN_2x2->SetName("htotN_2x2");
-    auto htotN_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
+    auto htotN_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
     htotN_tred->SetName("htotN_tred");
     TCanvas* c2 = new TCanvas("ctotN", "totN", 800, 600);
     htotN_2x2->SetTitle("total N per pixel;totN;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         htotN_2x2->Scale(1./d_2x2);
         htotN_tred->Scale(1./d_tred);
     } else {
@@ -116,8 +160,8 @@ void draw_totN(const bool uselength){
     leg->AddEntry(htotN_tred, "tred");
     leg->Draw();
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         TLatex *tex = new TLatex();
         tex->SetTextFont(42);
         tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
@@ -132,15 +176,15 @@ void draw_totN(const bool uselength){
 
 void draw_totN_totQ24(const bool uselength){
 
-    auto htotN_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
+    auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
     htotN_2x2->SetName("htotNtotQ24_2x2");
-    auto htotN_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
+    auto htotN_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
     htotN_tred->SetName("htotNtotQ24_tred");
-    TCanvas* c2 = new TCanvas("ctotN", "totN", 800, 600);
+    TCanvas* c2 = new TCanvas("ctotN_totQ24", "totN_totQ24", 800, 600);
     htotN_2x2->SetTitle("total N per pixel,totQ>24;totN;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         htotN_2x2->Scale(1./d_2x2);
         htotN_tred->Scale(1./d_tred);
     } else {
@@ -157,8 +201,8 @@ void draw_totN_totQ24(const bool uselength){
     leg->AddEntry(htotN_tred, "tred");
     leg->Draw();
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         TLatex *tex = new TLatex();
         tex->SetTextFont(42);
         tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
@@ -173,15 +217,15 @@ void draw_totN_totQ24(const bool uselength){
 
 void draw_totQ_totN1(const bool uselength){
 
-    auto htotQ_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totQ", "tindex == 0 && totN == 1");
+    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 1");
     htotQ_2x2->SetName("htotQ_2x2_totN1");
-    auto htotQ_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totQ", "tindex == 0 && totN==1");
+    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0 && totN==1");
     htotQ_tred->SetName("htotQ_tred_totN1");
     TCanvas* c1 = new TCanvas("ctotQtotN1", "totQtotN1", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel, totN==1;totQ;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         htotQ_2x2->Scale(1./d_2x2);
         htotQ_tred->Scale(1./d_tred);
     } else {
@@ -212,15 +256,15 @@ void draw_totQ_totN1(const bool uselength){
 
 void draw_totQ_totN2(const bool uselength){
 
-    auto htotQ_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
+    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
     htotQ_2x2->SetName("htotQ_2x2_totN2");
-    auto htotQ_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totQ", "tindex == 0 && totN==2");
+    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0 && totN==2");
     htotQ_tred->SetName("htotQ_tred_totN2");
     TCanvas* c1 = new TCanvas("ctotQtotN2", "totQtotN2", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel, totN==2;totQ;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         htotQ_2x2->Scale(1./d_2x2);
         htotQ_tred->Scale(1./d_tred);
     } else {
@@ -251,15 +295,15 @@ void draw_totQ_totN2(const bool uselength){
 
 void draw_totQ_totN3(const bool uselength){
 
-    auto htotQ_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
+    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
     htotQ_2x2->SetName("htotQ_2x2_totN3");
-    auto htotQ_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "totQ", "tindex == 0 && totN==2");
+    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0 && totN==2");
     htotQ_tred->SetName("htotQ_tred_totN3");
     TCanvas* c1 = new TCanvas("ctotQtotN3", "totQtotN3", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel, totN==3;totQ;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         htotQ_2x2->Scale(1./d_2x2);
         htotQ_tred->Scale(1./d_tred);
     } else {
@@ -290,15 +334,15 @@ void draw_totQ_totN3(const bool uselength){
 
 void draw_thres(const bool uselength){
 
-    auto hthres_2x2 = draw_from_tree("../track_data.root", "selected_data/hits", "thres", "tindex == 0");
+    auto hthres_2x2 = draw_from_tree(data_path, "selected_data/hits", "thres", "tindex == 0");
     hthres_2x2->SetName("hthres_2x2");
-    auto hthres_tred = draw_from_tree("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/hits", "thres", "tindex == 0");
+    auto hthres_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "thres", "tindex == 0");
     hthres_tred->SetName("hthres_tred");
     TCanvas* c1 = new TCanvas("cthres", "thres", 800, 600);
     hthres_2x2->SetTitle("frequency of thresholds at each triggered channel;thres;normalized counts");
     if (uselength) {
-        auto d_2x2 = sum_total_length("../track_data.root", "selected_data/distances");
-        auto d_tred = sum_total_length("../lifetime2ms/many_muon_hits_selected.root", "mu_ndlar/distances");
+        auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
+        auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
         hthres_2x2->Scale(1./d_2x2);
         hthres_tred->Scale(1./d_tred);
     } else {

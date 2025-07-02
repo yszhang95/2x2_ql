@@ -288,7 +288,13 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
     # Load file once
     fh5 = h5py.File(f'{finpath}', 'r')
     # hits = fh5['/selected/hits'][:]
-    hits = fh5['/selected/hits/data'][:]
+    if '/selected/hits/data' in fh5:
+        hits = fh5['/selected/hits/data'][:]
+    elif '/hits' in fh5:
+        hits = fh5['/hits'][:]
+    else:
+        raise KeyError("Neither '/selected/hits/data' nor '/hits' found in the file.")
+
     eids = hits['event_id']
     hits = hits[np.argsort(eids)]
     groups = list(split_sorted_dataset(eids))
@@ -309,6 +315,7 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             max_dist = np.max(pdist(xyz))
             distances.append(float(max_dist))
             out_hits.append(extended_hits)
+            print(extended_hits['event_id'][0], max_dist)
     #f[f'event{ie}/hits'] = hits
     f['mu_ndlar/hits'] = np.concatenate(out_hits)
     f['mu_ndlar/distances'] = { "distance" : np.array(distances)}

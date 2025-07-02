@@ -10,6 +10,7 @@ dependencies = [
     "h5py>=3.13.0",
     "hist[plot]>=2.8.1",
     "jupyter>=1.1.1",
+    "k3d>=2.16.1",
     "numba>=0.61.2",
     "numpy>=2.2.5",
     "scikit-learn>=1.6.1",

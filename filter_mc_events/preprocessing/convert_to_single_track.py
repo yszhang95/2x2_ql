@@ -1,7 +1,8 @@
 import h5py
 import numpy as np
 
-f = h5py.File('/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/MiniRun5_1E19_RHC.convert2h5.0000000.EDEPSIM.hdf5')
+source_file = '/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/MiniRun5_1E19_RHC.convert2h5.0000000.EDEPSIM.hdf5'
+f = h5py.File(source_file)
 
 traj = f['trajectories']
 segm = f['segments']
@@ -31,4 +32,5 @@ for i, eid in enumerate(events):
 for k, v in segments_out.items():
     ds = np.concatenate(v)
     with h5py.File(f'segments_pid{k}.hdf5', 'w') as fout:
-        fout.create_dataset('segments', data=ds)
+        ds = fout.create_dataset('segments', data=ds)
+        ds.attrs['source_file'] = source_file

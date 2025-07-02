@@ -71,11 +71,15 @@ def export_event_array(npz_path, prefix):
 # output_dir = './nonoise_pid13'
 infile = sys.argv[1]
 output_dir = sys.argv[2]
-with h5py.File(f'{output_dir}/many_muon_hits.hdf5', 'w') as fout:
+try:
+    prefix = sys.argv[3]
+except IndexError:
+    prefix = 'hits'
+with h5py.File(f'{output_dir}/many_muon_{prefix}.hdf5', 'w') as fout:
     # pos, qs, eids, tids, inds = export_event_array("/home/yousen/Public/ndlar_shared/data/tred_2x2_2025010/waveforms.npz", ".", prefix='hits')
     # pos, qs, eids, tids, inds = export_event_array("nonoise_pid13_unipolar/waveforms_nonoise_pid13_unipolar.npz", prefix='hits')
     # pos, qs, eids, tids, inds = export_event_array("nonoise_pid13/waveforms_pid13_ndlar.npz", prefix='hits')
-    pos, qs, eids, tids, inds = export_event_array(infile, prefix='hits')
+    pos, qs, eids, tids, inds = export_event_array(infile, prefix=prefix)
     io_group = tids # there might be mismatch
     flatten_index = inds[:,0] * 5000 + inds[:,1]
     flatten_stride = np.full_like(flatten_index, fill_value=5000)
@@ -104,4 +108,4 @@ with h5py.File(f'{output_dir}/many_muon_hits.hdf5', 'w') as fout:
     hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs, t_drift], usemask=False)
     hits = rfn.append_fields(hits, names=['io_group', 'flatten_index', 'flatten_stride', 'event_id'], data=[io_group, flatten_index, flatten_stride, eids], usemask=False)
 
-    fout.create_dataset('hits', data=hits)
+    fout.create_dataset(prefix, data=hits)
