@@ -318,11 +318,32 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     bin_centers, dqdx = compute_dqdx(selected, direction, points, dx_width)
 
     fig_dqdx = go.Figure()
+    mean_dqdx = np.mean(dqdx[dqdx > 0])  # Ignore empty bins (optional)
     fig_dqdx.add_trace(go.Bar(x=bin_centers, y=dqdx, width=dx_width, marker_color='mediumblue'))
+    # Horizontal mean line
+    fig_dqdx.add_trace(go.Scatter(
+        x=[bin_centers[0], bin_centers[-1]],
+        y=[mean_dqdx, mean_dqdx],
+        mode='lines',
+        line=dict(color='red', dash='dash'),
+        name=f"Mean = {mean_dqdx:.2f}"
+    ))
+    # Add annotation text for mean value
+    fig_dqdx.add_annotation(
+        x=bin_centers[len(bin_centers)//2],
+        y=mean_dqdx,
+        text=f"Mean: {mean_dqdx:.2f}",
+        showarrow=False,
+        font=dict(color='red', size=12),
+        yanchor="bottom"
+    )
     fig_dqdx.update_layout(
         title="Charge Profile Along Track (dQ/dx)",
         xaxis_title="Projected Distance Along Track",
-        yaxis_title="Charge Density (Q / dx)",
+        yaxis=dict(
+            title="Charge Density (Q / dx)",
+            range=[0, 150]  # <-- set y-axis range
+        ),
         height=500,
         width=700
     )
