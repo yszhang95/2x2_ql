@@ -256,9 +256,9 @@ def prep_per_event(hits, itpc=None, highq_thres=None):
     ref_x = k_x * extended_hits['y'] + b_x
 
     # direction
-    reg = LinearRegression().fit(np.column_stack([uni_pxls['y'], uni_pxls['z']]), uni_pxls['x'])
-    # para = np.sum(1./reg.coef_**2) > 1/0.05
-    para = normalized_dx(reg.coef_[0], reg.coef_[1])
+    reg_xy = LinearRegression().fit(uni_pxls['y'][:,None], uni_pxls['x'])
+    reg_xz = LinearRegression().fit(uni_pxls['z'][:,None], uni_pxls['x'])
+    para = normalized_dx(reg_xy.coef_[0], reg_xz.coef_[0])
 
     dx = extended_hits['x'] - ref_x
     sign = np.where(extended_hits['io_group'] % 2, 1.0, -1.0)

@@ -238,18 +238,22 @@ def prep_per_event(hits, highq_thres=None):
     ref_x = k_x * extended_hits['y'] + b_x
 
     # direction
-    reg = LinearRegression().fit(np.column_stack([uni_pxls['y'], uni_pxls['z']]), uni_pxls['x'])
-    # para = np.sum(1./reg.coef_**2) > 1/0.05
-    para = normalized_dx(reg.coef_[0], reg.coef_[1])
+    reg_xy = LinearRegression().fit(uni_pxls['y'][:,None], uni_pxls['x'])
+    reg_xz = LinearRegression().fit(uni_pxls['z'][:,None], uni_pxls['x'])
+    para = normalized_dx(reg_xy.coef_[0], reg_xz.coef_[0])
 
     dx = extended_hits['x'] - ref_x
     sign = np.where(extended_hits['io_group'] % 2, 1.0, -1.0)
     dx *= sign
     extended_hits = rfn.append_fields(extended_hits, names='dx', data=dx, usemask=False)
     if not (para < 0.05):
-        print('filtered', para)
+        # print('filtered', para)
         # print(reg.coef_[0], reg.coef_[1])
         return np.array([], dtype=extended_hits.dtype)
+    else:
+        # print('----------------- kept', para, np.degrees(np.arcsin(np.abs(para))), extended_hits['event_id'][0])
+        # print('dx', np.max(extended_hits['x'])-np.min(extended_hits['x']), 'dy', np.max(extended_hits['y']), np.min(extended_hits['y']), 'dz', np.max(extended_hits['z']), np.min(extended_hits['z']))
+        pass
     return extended_hits
 
 
