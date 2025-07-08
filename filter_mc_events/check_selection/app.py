@@ -7,7 +7,13 @@ import numpy as np
 import h5py
 from collections import defaultdict
 from sklearn.cluster import DBSCAN
+import plotly.io as pio
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
 import os
+import base64
+import io
+import numpy as np
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
@@ -26,7 +32,7 @@ app.layout = dbc.Container([
             multiple=False
         )], width=6),
         dbc.Col([
-            dbc.Input(id='qmin', type='number', placeholder='Q min', value=25),
+            dbc.Input(id='qmin', type='number', placeholder='Q min', value=30),
             dbc.Input(id='qmax', type='number', placeholder='Q max', value=100),
             dbc.Button("Update Plot", id="update-button", className="mt-2", color="primary")
         ])
@@ -45,6 +51,7 @@ app.layout = dbc.Container([
         ),
     ], style={"display": "flex", "align-items": "center", "margin-bottom": "20px"}),
     dcc.Store(id='memory-path'),
+    html.Div(id='angle-display', style={'marginTop': '20px', 'fontSize': '16px'}),
     dcc.Graph(id='yz-plot'),
     dcc.Graph(id='xz-plot'),
     dcc.Graph(id='dqdx-plot'),
@@ -59,6 +66,39 @@ def load_hits_from_hdf5(filepath):
         direction = f['picked/direction/data'][:]
         points = f['picked/points/data'][:]
     return selected, deselected, direction, points
+
+def save_pdf_report(figs, filename_base, qmin, qmax):
+    pdf_filename = f"{filename_base}_Q{qmin}to{qmax}.pdf"
+    # Use non-interactive backend to avoid GUI issues entirely
+    plt.switch_backend('Agg')
+
+    with PdfPages(pdf_filename) as pdf:
+        angles = figs[0]
+        fang, ax = plt.subplots(figsize=(8, 6))
+        ax.axis('off')
+        text = "\n".join([
+            f"Input file base name: {angles['event_basename']}",
+            f"Angle to YZ Plane: {angles['angle_to_yz_plane_deg']}°",
+            f"dx of direction: {np.sin(np.deg2rad(angles['angle_to_yz_plane_deg'])):.3f}",
+            f"Phi in YZ Plane: {angles['phi_in_yz_plane_deg']}°",
+            f"Theta from Z Axis: {angles['theta_from_z_deg']}°"
+        ])
+        ax.text(0.5, 0.5, text, fontsize=14, ha='center', va='center')
+        pdf.savefig(fang)
+        plt.close()
+        for fig in figs[1:]:
+            # Export to PNG image in memory
+            img_bytes = pio.to_image(fig, format='png', width=800, height=600)
+            img = plt.imread(io.BytesIO(img_bytes), format='png')
+
+            # Plot the image on a Matplotlib figure
+            plt.figure(figsize=(8, 6))
+            plt.imshow(img)
+            plt.axis('off')
+            pdf.savefig()
+            plt.close()
+
+    print(f"PDF saved: {pdf_filename}")
 
 def compute_dqdx(selected_hits, direction, points, bin_width=2.0):
 
@@ -114,6 +154,16 @@ def reduce_hits(hits):
 def filter_marked(hits, qmin, qmax):
     return [h for h in hits if qmin <= h['totQ'] <= qmax], [h for h in hits if qmin >= h['totQ'] or h['totQ'] >  qmax]
 
+def compute_track_angles(direction):
+    dx, dy, dz = direction / np.linalg.norm(direction)
+    angle_to_yz = np.degrees(np.arcsin(abs(dx)))  # deviation from YZ plane
+    phi_yz = np.degrees(np.arctan2(dz, dy))       # angle in YZ plane
+    theta_z = np.degrees(np.arccos(dz))           # from Z-axis
+    return {
+        "angle_to_yz_plane_deg": round(angle_to_yz, 2),
+        "phi_in_yz_plane_deg": round(phi_yz, 2),
+        "theta_from_z_deg": round(theta_z, 2)
+    }
 
 @app.callback(
     Output('memory-path', 'data'),
@@ -125,8 +175,6 @@ def save_uploaded_file(contents, filename):
     if contents is None:
         return dash.no_update, ""
     content_type, content_string = contents.split(',')
-    import base64
-    import io
     decoded = base64.b64decode(content_string)
     filepath = os.path.join('uploads', filename)
     os.makedirs('uploads', exist_ok=True)
@@ -140,6 +188,7 @@ def save_uploaded_file(contents, filename):
     Output('xz-plot', 'figure'),
     Output('dqdx-plot', 'figure'),  # Add this line
     Output('3d-plot', 'figure'),  # Add this line
+    Output('angle-display', 'children'),
     Input('update-button', 'n_clicks'),
     State('qmin', 'value'),
     State('qmax', 'value'),
@@ -148,9 +197,10 @@ def save_uploaded_file(contents, filename):
 )
 def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     if not filepath or not os.path.exists(filepath):
-        return go.Figure(), go.Figure(), go.Figure(), go.Figure()
+        return go.Figure(), go.Figure(), go.Figure(), go.Figure(), html.Div()
 
     selected, deselected, direction, points = load_hits_from_hdf5(filepath)
+    angles = compute_track_angles(direction)
     sel_red = reduce_hits(selected)
     desel_red = reduce_hits(deselected)
     marked, unmarked = filter_marked(sel_red, qmin, qmax)
@@ -313,8 +363,19 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
         margin=dict(l=0, r=0, b=0, t=40)
     )
 
+    angle_text = html.Div([
+        html.H5("Track Orientation"),
+        html.P(f"Angle to YZ Plane: {angles['angle_to_yz_plane_deg']}°"),
+        html.P(f"dx of direction: {np.sin(np.deg2rad(angles['angle_to_yz_plane_deg'])):.3f}"),
+        html.P(f"Phi in YZ Plane: {angles['phi_in_yz_plane_deg']}°"),
+        # html.P(f"Theta from Z Axis: {angles['theta_from_z_deg']}°")
+    ])
 
-    return fig_yz, fig_xz, fig_dqdx, fig_3d
+    filename_base = os.path.splitext(os.path.basename(filepath))[0]
+    angles['event_basename'] = filename_base
+    save_pdf_report([angles, fig_yz, fig_xz, fig_dqdx, fig_3d], filename_base, qmin, qmax)
+
+    return fig_yz, fig_xz, fig_dqdx, fig_3d, angle_text
 
 
 if __name__ == '__main__':
