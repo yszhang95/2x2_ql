@@ -21,7 +21,10 @@ server = app.server
 app.layout = dbc.Container([
     html.H2("Interactive Projection Plots from HDF5"),
     dbc.Row([
-        dbc.Col([dcc.Upload(
+        dbc.Col([
+            dbc.Input(id='upload-save-dir', type='text', placeholder='Target directory to save file', value='uploads', debounce=True),
+
+            dcc.Upload(
             id='upload-data',
             children=html.Div(['Drag and Drop or ', html.A('Select a HDF5 File')]),
             style={
@@ -169,15 +172,19 @@ def compute_track_angles(direction):
     Output('memory-path', 'data'),
     Output('filepath-display', 'children'),
     Input('upload-data', 'contents'),
-    State('upload-data', 'filename')
+    State('upload-data', 'filename'),
+    State('upload-save-dir', 'value'),
 )
-def save_uploaded_file(contents, filename):
+def save_uploaded_file(contents, filename, target_dir=None):
     if contents is None:
         return dash.no_update, ""
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
-    filepath = os.path.join('uploads', filename)
-    os.makedirs('uploads', exist_ok=True)
+        # Use directory from input, fallback to default
+    if not target_dir:
+        target_dir = 'uploads'
+    os.makedirs(target_dir, exist_ok=True)
+    filepath = os.path.join(target_dir, filename)
     with open(filepath, 'wb') as f:
         f.write(decoded)
     return filepath, f"Loaded file: {filepath}"
@@ -372,8 +379,9 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     ])
 
     filename_base = os.path.splitext(os.path.basename(filepath))[0]
-    angles['event_basename'] = filename_base
-    save_pdf_report([angles, fig_yz, fig_xz, fig_dqdx, fig_3d], filename_base, qmin, qmax)
+    filename_path = os.path.join(os.path.dirname(filepath), filename_base)
+    angles['event_basename'] = filename_path
+    save_pdf_report([angles, fig_yz, fig_xz, fig_dqdx, fig_3d], filename_path, qmin, qmax)
 
     return fig_yz, fig_xz, fig_dqdx, fig_3d, angle_text
 
