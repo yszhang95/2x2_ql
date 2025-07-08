@@ -108,7 +108,11 @@ def compute_dqdx(selected_hits, direction, points, bin_width=2.0):
     # Center of picked points
     # centroid = 0.5 * (points[0] + points[1])
     # rank by z
-    pt = points[0] if points[0,-1] < points[1,-1] else points[1]
+    if points.shape == (2,3):
+        pts = points
+    else:
+        pts = np.vstack([points['x'], points['y'], points['z']]).T
+    pt = pts[0] if pts[0,-1] < pts[1,-1] else pts[1]
     centroid = pt
 
     # Project selected hits onto direction
