@@ -47,6 +47,8 @@ app.layout = dbc.Container([
     dcc.Store(id='memory-path'),
     dcc.Graph(id='yz-plot'),
     dcc.Graph(id='xz-plot'),
+    dcc.Graph(id='dqdx-plot'),
+    dcc.Graph(id='3d-plot'),
 ])
 
 
@@ -54,8 +56,36 @@ def load_hits_from_hdf5(filepath):
     with h5py.File(filepath, 'r') as f:
         selected = f['/hits/selected/data'][:]
         deselected = f['/hits/deselected/data'][:]
-    return selected, deselected
+        direction = f['picked/direction/data'][:]
+        points = f['picked/points/data'][:]
+    return selected, deselected, direction, points
 
+def compute_dqdx(selected_hits, direction, points, bin_width=2.0):
+
+    # Center of picked points
+    # centroid = 0.5 * (points[0] + points[1])
+    # rank by z
+    pt = points[0] if points[0,-1] < points[1,-1] else points[1]
+    centroid = pt
+
+    # Project selected hits onto direction
+    hit_xyz = np.stack([selected_hits['x'], selected_hits['y'], selected_hits['z']], axis=1)
+    hit_q = selected_hits['Q']
+
+    relative_positions = hit_xyz - centroid
+    projections = np.dot(relative_positions, direction)
+
+    proj_min, proj_max = projections.min(), projections.max()
+    bin_edges = np.arange(proj_min, proj_max + bin_width, bin_width)
+    if bin_edges[-1] < proj_max:
+        bin_edges = np.append(bin_edges, proj_max)
+
+    hist, _ = np.histogram(projections, bins=bin_edges, weights=hit_q)
+    bin_widths = np.diff(bin_edges)
+    dqdx = hist / bin_widths
+    bin_centers = bin_edges[:-1] + bin_widths / 2
+
+    return bin_centers, dqdx
 
 def reduce_hits(hits):
     y = np.round(hits['y'], 3)
@@ -108,6 +138,8 @@ def save_uploaded_file(contents, filename):
 @app.callback(
     Output('yz-plot', 'figure'),
     Output('xz-plot', 'figure'),
+    Output('dqdx-plot', 'figure'),  # Add this line
+    Output('3d-plot', 'figure'),  # Add this line
     Input('update-button', 'n_clicks'),
     State('qmin', 'value'),
     State('qmax', 'value'),
@@ -116,9 +148,9 @@ def save_uploaded_file(contents, filename):
 )
 def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     if not filepath or not os.path.exists(filepath):
-        return go.Figure(), go.Figure()
+        return go.Figure(), go.Figure(), go.Figure(), go.Figure()
 
-    selected, deselected = load_hits_from_hdf5(filepath)
+    selected, deselected, direction, points = load_hits_from_hdf5(filepath)
     sel_red = reduce_hits(selected)
     desel_red = reduce_hits(deselected)
     marked, unmarked = filter_marked(sel_red, qmin, qmax)
@@ -157,7 +189,7 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
             name=name
         )
 
-    fig = go.Figure([
+    fig_yz = go.Figure([
         # make_trace("selected", sel_red),
         make_trace("deselected", desel_red),
         make_trace("selected-unmarked", unmarked),
@@ -172,7 +204,7 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
     y_min, y_max = -3+min(all_y), 3+max(all_y)
     z_min, z_max = -3+min(all_z), 3+max(all_z)
 
-    fig.update_layout(
+    fig_yz.update_layout(
         title="YZ Projection: size ~ totN, color ~ totQ",
         xaxis=dict(title="Y", range=[y_min, y_max]),
         yaxis=dict(title="Z", range=[z_min, z_max]),
@@ -208,13 +240,13 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
             name=name
         )
 
-    figxz = go.Figure([
+    fig_xz = go.Figure([
         make_trace_xz("deselected", desel_red),
         make_trace_xz("selected-unmarked", unmarked),
         make_trace_xz("selected-marked", marked),
     ])
 
-    figxz.update_layout(
+    fig_xz.update_layout(
         title="XZ Projection: size ~ totN, color ~ totQ",
         xaxis=dict(title="X", range=[x_min, x_max]),
         yaxis=dict(title="Z", range=[z_min, z_max]),
@@ -223,7 +255,66 @@ def update_plot(n_clicks, qmin, qmax, filepath, hit_color_style):
         height=800,
         width=800
     )
-    return fig, figxz
+
+    # --- dQ/dx computation ---
+    dx_width = 2.0
+    bin_centers, dqdx = compute_dqdx(selected, direction, points, dx_width)
+
+    fig_dqdx = go.Figure()
+    fig_dqdx.add_trace(go.Bar(x=bin_centers, y=dqdx, width=dx_width, marker_color='mediumblue'))
+    fig_dqdx.update_layout(
+        title="Charge Profile Along Track (dQ/dx)",
+        xaxis_title="Projected Distance Along Track",
+        yaxis_title="Charge Density (Q / dx)",
+        height=500,
+        width=700
+    )
+
+    # --- 3D Plot ---
+    fig_3d = go.Figure()
+
+    # 3D scatter for selected hits
+    fig_3d.add_trace(go.Scatter3d(
+        x=[d['x'] for d in sel_red],
+        y=[d['y'] for d in sel_red],
+        z=[d['z'] for d in sel_red],
+        mode='markers',
+        marker=dict(
+            size=3,
+            color='blue',
+            opacity=0.5
+        ),
+        name='Selected'
+    ))
+
+    # 3D scatter for deselected hits
+    fig_3d.add_trace(go.Scatter3d(
+        x=[d['x'] for d in desel_red],
+        y=[d['y'] for d in desel_red],
+        z=[d['z'] for d in desel_red],
+        mode='markers',
+        marker=dict(
+            size=3,
+            color='grey',
+            opacity=0.3
+        ),
+        name='Deselected'
+    ))
+
+    fig_3d.update_layout(
+        scene=dict(
+            xaxis_title='X',
+            yaxis_title='Y',
+            zaxis_title='Z'
+        ),
+        title='3D Scatter Plot of Hits',
+        height=1000,
+        width=1200,
+        margin=dict(l=0, r=0, b=0, t=40)
+    )
+
+
+    return fig_yz, fig_xz, fig_dqdx, fig_3d
 
 
 if __name__ == '__main__':
