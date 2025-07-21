@@ -1,0 +1,1 @@
+uv run ../pick_pgun.py /home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_event_id{}_tred_hits.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_merged.hdf5
