@@ -290,6 +290,9 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
     feffq = h5py.File(f'{finpath}', 'r')
     if '/effq' in feffq:
         effq = feffq['/effq'][:]
+    elif '/selected/effq/data' in feffq:
+        effq = feffq['/selected/effq/data'][:]
+    print(effq.dtype)
 
     print(f"Loaded {finpath}")
 
@@ -298,16 +301,20 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
     fh5 = h5py.File(f'{hits_path}', 'r')
     if '/hits' in fh5:
         hits = fh5['/hits'][:]
+    elif '/selected/hits/data' in fh5:
+        hits = fh5['/selected/hits/data'][:]
     else:
         raise KeyError("Neither '/selected/hits/data' nor '/hits' found in the file.")
     print(f"Loaded {hits_path}")
 
     eids = hits['event_id']
     hits = hits[np.argsort(eids)]
+    eids = hits['event_id']
     groups = list(split_sorted_dataset(eids))
 
     effq_eids = effq['event_id']
     effq = effq[np.argsort(effq_eids)]
+    effq_eids = effq['event_id']
     effq_groups = list(split_sorted_dataset(effq_eids))
 
     assert len(effq_groups) == len(groups), 'assume the number of events of effq and hits are the same'

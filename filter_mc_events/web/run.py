@@ -188,7 +188,7 @@ def compute_nearby(n_clicks, line_data, event_id, threshold, source_file):
     proj = p0 + np.outer(t, seg_vec)
     dists = np.linalg.norm(points - proj, axis=1)
 
-    in_mask = dists <= threshold
+    in_mask = dists < threshold
     df_in = subdf[in_mask]
     df_out = subdf[~in_mask]
 

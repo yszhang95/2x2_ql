@@ -5,8 +5,12 @@ static std::string data_path = "../track_data.root";
 // static std::string effq_path = "../pgun_pid13_constR/many_muon_effq.root";
 // static std::string mc_path = "../pgun_pid13_transformed/many_muon_hits.root";
 // static std::string effq_path = "../pgun_pid13_transformed/many_muon_effq.root";
-static std::string mc_path = "../pgun_pid13_constR_transformed/many_muon_hits.root";
-static std::string effq_path = "../pgun_pid13_constR_transformed/many_muon_effq.root";
+// static std::string mc_path = "../pgun_pid13_constR_transformed/many_muon_hits.root";
+//static std::string effq_path = "../pgun_pid13_constR_transformed/many_muon_effq.root";
+// static std::string mc_path = "../web/pgun_mu_5GeV_20250708/many_muon_hits_selected.root";
+// static std::string effq_path = "../web/pgun_mu_5GeV_20250708/many_muon_effq.root";
+static std::string mc_path = "../web/pgun_mu_3GeV_20250709/many_muon_hits_selected.root";
+static std::string effq_path = "../web/pgun_mu_3GeV_20250709/many_muon_effq_selected.root";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
     // Load the ROOT file
@@ -63,10 +67,12 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
     htotQ_2x2->SetName("htotQ_2x2");
     auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0");
     htotQ_tred->SetName("htotQ_tred");
-    auto htotQ_effq = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 5000");
-    auto htotQ_effq2 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 3000");
-    auto htotQ_effq3 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ/1000.", "tindex == 0 && totQ > 7000");
+    auto htotQ_effq = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ.", "tindex == 0 && totQ > 5");
+    auto htotQ_effq2 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ.", "tindex == 0 && totQ > 3");
+    auto htotQ_effq3 = draw_from_tree(effq_path, "mu_ndlar/effq", "totQ.", "tindex == 0 && totQ > 7");
     htotQ_effq->SetName("htotQ_effq");
+    htotQ_effq2->SetName("htotQ_effq2");
+    htotQ_effq3->SetName("htotQ_effq3");
     TCanvas* c1 = new TCanvas("ctotQ", "totQ", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel;totQ;normalized counts");
     if (uselength) {
@@ -75,7 +81,7 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
         auto d_effq = sum_total_length(effq_path, "mu_ndlar/distances");
         htotQ_2x2->Scale(1./d_2x2);
         htotQ_tred->Scale(1./d_tred);
-        if (useqeff) {
+        if (useqeff && uselength) {
             htotQ_effq->Scale(1./d_effq);
             htotQ_effq2->Scale(1./d_effq);
             htotQ_effq3->Scale(1./d_effq);
@@ -83,11 +89,6 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
     } else {
         htotQ_2x2->Scale(1./htotQ_2x2->GetEntries());
         htotQ_tred->Scale(1./htotQ_tred->GetEntries());
-        if (useqeff) {
-            htotQ_effq->Scale(1./htotQ_effq->GetEntries());
-            htotQ_effq2->Scale(1./htotQ_effq2->GetEntries());
-            htotQ_effq3->Scale(1./htotQ_effq3->GetEntries());
-        }
     }
     htotQ_2x2->GetYaxis()->SetRangeUser(0, 1.2* std::max(htotQ_2x2->GetMaximum(), htotQ_tred->GetMaximum()));
     htotQ_2x2->Draw();
@@ -95,7 +96,7 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
     htotQ_tred->Draw("SAME");
     htotQ_tred->SetLineColor(kBlue);
 
-    if (useqeff) {
+    if (useqeff && uselength) {
         htotQ_effq->Draw("HIST SAME");
         htotQ_effq->SetLineColor(kGreen-3);
         htotQ_effq->SetLineStyle(kDashed);
@@ -112,7 +113,7 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
     TLegend * leg = new TLegend(0.5, 0.7, 0.8, 0.85);
     leg->AddEntry(htotQ_2x2, "2x2");
     leg->AddEntry(htotQ_tred, "tred");
-    if (useqeff) {
+    if (useqeff && uselength) {
         leg->AddEntry(htotQ_effq, "effq; totQ>5ke-");
         leg->AddEntry(htotQ_effq2, "effq; totQ>3ke-");
         leg->AddEntry(htotQ_effq3, "effq; totQ>7ke-");
@@ -174,14 +175,14 @@ void draw_totN(const bool uselength){
     }
 }
 
-void draw_totN_totQ24(const bool uselength){
+void draw_totN_totQ30(const bool uselength){
 
-    auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
-    htotN_2x2->SetName("htotNtotQ24_2x2");
-    auto htotN_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totN", "tindex == 0 && totQ>24", 5, -0.5, 4.5);
-    htotN_tred->SetName("htotNtotQ24_tred");
-    TCanvas* c2 = new TCanvas("ctotN_totQ24", "totN_totQ24", 800, 600);
-    htotN_2x2->SetTitle("total N per pixel,totQ>24;totN;normalized counts");
+    auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0 && totQ>30", 5, -0.5, 4.5);
+    htotN_2x2->SetName("htotNtotQ30_2x2");
+    auto htotN_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totN", "tindex == 0 && totQ>30", 5, -0.5, 4.5);
+    htotN_tred->SetName("htotNtotQ30_tred");
+    TCanvas* c2 = new TCanvas("ctotN_totQ30", "totN_totQ30", 800, 600);
+    htotN_2x2->SetTitle("total N per pixel,totQ>30;totN;normalized counts");
     if (uselength) {
         auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
         auto d_tred = sum_total_length(mc_path, "mu_ndlar/distances");
@@ -209,9 +210,9 @@ void draw_totN_totQ24(const bool uselength){
         tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotN_tred->Integral(), d_tred));
     }
     if (uselength) {
-        c2->Print("comp_totNtotQ24_norm_by_l.png");
+        c2->Print("comp_totNtotQ30_norm_by_l.png");
     } else {
-        c2->Print("comp_totNtotQ24.png");
+        c2->Print("comp_totNtotQ30.png");
     }
 }
 
@@ -295,9 +296,9 @@ void draw_totQ_totN2(const bool uselength){
 
 void draw_totQ_totN3(const bool uselength){
 
-    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
+    auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 3");
     htotQ_2x2->SetName("htotQ_2x2_totN3");
-    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0 && totN==2");
+    auto htotQ_tred = draw_from_tree(mc_path, "mu_ndlar/hits", "totQ", "tindex == 0 && totN==3");
     htotQ_tred->SetName("htotQ_tred_totN3");
     TCanvas* c1 = new TCanvas("ctotQtotN3", "totQtotN3", 800, 600);
     htotQ_2x2->SetTitle("total Q per pixel, totN==3;totQ;normalized counts");
@@ -366,10 +367,11 @@ void draw_thres(const bool uselength){
 }
 
 void draw_totQ_totN(bool uselength=false){
+    TH1::SetDefaultSumw2();
     gStyle->SetOptStat(0);
     draw_totQ(uselength);
     draw_totN(uselength);
-    draw_totN_totQ24(uselength);
+    draw_totN_totQ30(uselength);
     draw_totQ_totN1(uselength);
     draw_totQ_totN2(uselength);
     draw_totQ_totN3(uselength);

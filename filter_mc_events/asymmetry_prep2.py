@@ -247,13 +247,17 @@ def prep_per_event(hits, itpc=None, highq_thres=None):
     k_yz, b_yz, tg_yz = yz_line(uni_pxls)
     d_tg, d_nm = proj_yz(extended_hits, k_yz, b_yz)
     extended_hits = rfn.append_fields(extended_hits, names=('d_tg', 'd_nm'), data=(d_tg, d_nm), usemask=False)
+    d_tg, d_nm = proj_yz(uni_pxls, k_yz, b_yz)
+    uni_pxls = rfn.append_fields(uni_pxls, names=('d_tg', 'd_nm'), data=(d_tg, d_nm), usemask=False)
 
     if highq_thres is not None:
         xyhits = extended_hits[extended_hits['Q'] > highq_thres]
     else:
         xyhits = uni_pxls
     k_x, b_x, _ = xline(xyhits, reflabel='y')
+    # k_x, b_x, _ = xline(xyhits, reflabel='d_tg')
     ref_x = k_x * extended_hits['y'] + b_x
+    # ref_x = k_x * extended_hits['d_tg'] + b_x
 
     # direction
     reg_xy = LinearRegression().fit(uni_pxls['y'][:,None], uni_pxls['x'])
@@ -265,9 +269,9 @@ def prep_per_event(hits, itpc=None, highq_thres=None):
     dx *= sign
     extended_hits = rfn.append_fields(extended_hits, names='dx', data=dx, usemask=False)
 
-    if not (para < 0.05):
-        # print(reg.coef_[0], reg.coef_[1])
-        return np.array([], dtype=extended_hits.dtype)
+    # if not (para < 0.05):
+    #     # print(reg.coef_[0], reg.coef_[1])
+    #     return np.array([], dtype=extended_hits.dtype)
     return extended_hits
 
 finpath = sys.argv[1]
@@ -297,25 +301,33 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
 
     eids = hits['event_id']
     hits = hits[np.argsort(eids)]
+    eids = hits['event_id']
+    print(hits['event_id'])
     groups = list(split_sorted_dataset(eids))
+    print(groups)
     out_hits = []
     distances = []
     for ie in range(len(groups)):
+        print(ie)
         for itpc in range(70):
             if itpc in [4,5]:
                 continue
             sel_hits = hits[groups[ie][1]]
             sel_hits = sel_hits[sel_hits['io_group'] == itpc]
+            # print(np.unique(sel_hits['event_id']))
             if len(sel_hits) < 10:
                 continue
             extended_hits = prep_per_event(sel_hits)
             if len(extended_hits) < 10:
+                print('filtered 2')
                 continue
             xyz = np.vstack([extended_hits['x'], extended_hits['y'], extended_hits['z']]).T
             max_dist = np.max(pdist(xyz))
             distances.append(float(max_dist))
             out_hits.append(extended_hits)
-            print(extended_hits['event_id'][0], max_dist)
+            print(ie, extended_hits['event_id'][0], max_dist)
     #f[f'event{ie}/hits'] = hits
     f['mu_ndlar/hits'] = np.concatenate(out_hits)
     f['mu_ndlar/distances'] = { "distance" : np.array(distances)}
+    print('d', distances)
+    print('written', f'{fdir}/{fprefix}.root')

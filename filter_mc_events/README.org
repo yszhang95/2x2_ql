@@ -1,10 +1,12 @@
 * README
 ** Conversion
 From =.npz= to =hdf5=, a format more compatatible with existing ND,
-: uv run python many_muons.py /path/to/npz /path/to/output
+: uv run python many_muons.py /path/to/npz /path/to/output [hits|effq]
 A =many_muons.hdf5= will be created in ~/path/to/output/~.
 
 ** Pick track
 *** Pick
+: cd web; uv run run.py
 *** Merge
+: uv run python merge.py /prefix/of/file [hits|effq]
 ** Event Display

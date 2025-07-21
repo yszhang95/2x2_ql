@@ -246,20 +246,22 @@ def prep_per_event(hits, highq_thres=None):
     sign = np.where(extended_hits['io_group'] % 2, 1.0, -1.0)
     dx *= sign
     extended_hits = rfn.append_fields(extended_hits, names='dx', data=dx, usemask=False)
-    if not (para < 0.05):
-        # print('filtered', para)
-        # print(reg.coef_[0], reg.coef_[1])
-        return np.array([], dtype=extended_hits.dtype)
-    else:
-        # print('----------------- kept', para, np.degrees(np.arcsin(np.abs(para))), extended_hits['event_id'][0])
-        # print('dx', np.max(extended_hits['x'])-np.min(extended_hits['x']), 'dy', np.max(extended_hits['y']), np.min(extended_hits['y']), 'dz', np.max(extended_hits['z']), np.min(extended_hits['z']))
-        pass
+    # if not (para < 0.05):
+    #     # print('filtered', para)
+    #     # print(reg.coef_[0], reg.coef_[1])
+    #     return np.array([], dtype=extended_hits.dtype)
+    # else:
+    #     # print('----------------- kept', para, np.degrees(np.arcsin(np.abs(para))), extended_hits['event_id'][0])
+    #     # print('dx', np.max(extended_hits['x'])-np.min(extended_hits['x']), 'dy', np.max(extended_hits['y']), np.min(extended_hits['y']), 'dz', np.max(extended_hits['z']), np.min(extended_hits['z']))
+    #     pass
     return extended_hits
 
 
 with uproot.recreate('track_data.root') as f:
 
-    fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
+    # fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
+    # fh5 = h5py.File('check_selection/selected_data_small_angle/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
+    fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
     # fh5 = h5py.File("web/many_muon_hits_selected.hdf5")
     dh5 = fh5['/selected/hits/data']
     data = dh5[:][np.argsort(dh5['event_id'])]
