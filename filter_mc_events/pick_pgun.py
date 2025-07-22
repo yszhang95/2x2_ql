@@ -134,7 +134,7 @@ def main():
 
     # global parameters
     dist_thres = 3  # cm
-    dqdx_diff = 2
+    dqdx_diff = 1
     dx_width = 2.0
     qthres = 10
 
@@ -173,14 +173,14 @@ def main():
         dropped = []
         proj_min = []
         proj_max = []
-        dqdx_per_event = []
+        mean_dqdx_per_event = []
         eid_per_event = []
         rid_per_event = []
         for j, (sel, desel) in enumerate(zip(selected_pts, deselected_pts)):
             _, dqdx, pt_min, pt_max = compute_dqdx(sel, dx_width, qthres)
             proj_min.append(pt_min)
             proj_max.append(pt_max)
-            dqdx_per_event.append(dqdx)
+            mean_dqdx_per_event.append(np.mean(dqdx))
             eid_per_event.append(sel['event_id'][0])
             rid_per_event.append(event_ids[ie])
             if len(dqdx) == 0:
@@ -192,6 +192,7 @@ def main():
                 dropped.append(True)
             else:
                 dropped.append(False)
+                print(np.abs(np.mean(dqdx) - dqdx_mean_per_source), dqdx_mean_per_source, np.mean(dqdx))
         # does not drop anything in effq
         if args.dtype == "effq":
             dropped = []
@@ -200,7 +201,7 @@ def main():
             if dropped[ind]:
                 del deselected_pts[ind]
                 del selected_pts[ind]
-                del dqdx_per_event[ind]
+                del mean_dqdx_per_event[ind]
                 del proj_min[ind]
                 del proj_max[ind]
                 del eid_per_event[ind]
@@ -218,7 +219,7 @@ def main():
             pts_minmax.append(
                 np.hstack([np.array(proj_min), np.array(proj_max)])
             )
-            dqdx_raw.append(np.concatenate(dqdx_per_event))
+            dqdx_raw.append(np.array(mean_dqdx_per_event))
             eids.append(np.array(eid_per_event))
             rids.append(np.array(rid_per_event))
 

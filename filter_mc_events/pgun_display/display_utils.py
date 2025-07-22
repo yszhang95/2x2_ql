@@ -9,7 +9,6 @@ import k3d
 
 # Load and group HDF5 data
 def load_files(input2_path):
-    print("Input2_path:", input2_path)
     with h5py.File(input2_path, 'r') as f2:
         source_path = f2['/source_file'][()].decode('utf-8')
         sel2 = f2['/hits/selected/data'][:]
@@ -155,10 +154,13 @@ def draw_record_k3d(record, plot, objects):
 
 
 def interactive_browser_k3d(records):
-    options = [(f"E:{r['event_id']} R:{r['run_id']}", i) for i, r in enumerate(records)]
-    dropdown = widgets.Dropdown(options=options, description='Event:')
+    options = [(f"E:{r['event_id']} R:{r['run_id']}, "
+                f"raw mean dQ/dx:{r['dqdx_raw']:.2f}",
+                i) for i, r in enumerate(records)]
+    dropdown = widgets.Dropdown(options=options, description='Event:',
+                                layout=widgets.Layout(min_width='400px'))
     out = widgets.Output()
-    label_display = widgets.Text(value=options[0][0], layout=widgets.Layout(width='150px'), disabled=True)
+    label_display = widgets.Text(value=options[0][0], layout=widgets.Layout(width='300px'), disabled=True)
 
     # Navigation buttons
     prev_button = widgets.Button(description='← Prev', layout=widgets.Layout(width='80px'))
@@ -200,9 +202,55 @@ def interactive_browser_k3d(records):
     prev_button.on_click(on_prev_clicked)
     next_button.on_click(on_next_clicked)
 
+    # save event_id, run_id
+
+    selected_list = []
+    selected_output = widgets.Select(
+        options=[],
+        rows=6,
+        description='Selected:',
+        layout=widgets.Layout(width='300px')
+    )
+
+    add_button = widgets.Button(description='Add Current', button_style='success')
+    remove_button = widgets.Button(description='Remove Selected', button_style='warning')
+    save_button = widgets.Button(description='Save to File', button_style='info')
+
+    def update_selected_output():
+        selected_output.options = [f"E:{eid} R:{rid}" for eid, rid in selected_list]
+
+    def on_add_clicked(b):
+        idx = dropdown.value
+        eid = records[idx]['event_id']
+        rid = records[idx]['run_id']
+        pair = (eid, rid)
+        if pair not in selected_list:
+            selected_list.append(pair)
+            update_selected_output()
+
+    def on_remove_clicked(b):
+        if selected_output.index is not None and selected_output.index < len(selected_list):
+            selected_list.pop(selected_output.index)
+            update_selected_output()
+
+    def on_save_clicked(b):
+        with open("selected_event_run_ids.txt", "w") as f:
+            for eid, rid in selected_list:
+                f.write(f"{eid},{rid}\n")
+        print("Saved to selected_event_run_ids.txt")
+
+    add_button.on_click(on_add_clicked)
+    remove_button.on_click(on_remove_clicked)
+    save_button.on_click(on_save_clicked)
+
+
     # Layout
     nav_row = widgets.HBox([prev_button, next_button, label_display])
-    ui = widgets.VBox([dropdown, nav_row, out, plot])
+
+    selection_controls = widgets.HBox([add_button, remove_button, save_button])
+    selection_panel = widgets.VBox([selected_output, selection_controls])
+
+    ui = widgets.VBox([dropdown, nav_row, selection_panel, out, plot])
 
     display(ui)
     # Initial display
