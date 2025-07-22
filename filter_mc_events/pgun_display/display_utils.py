@@ -2,8 +2,10 @@ import h5py
 import numpy as np
 import os
 import ipywidgets as widgets
-from IPython.display import display, clear_output
+from IPython.display import display, HTML
 import k3d
+# from itertools import product
+
 
 # Load and group HDF5 data
 def load_files(input2_path):
@@ -50,48 +52,159 @@ def load_files(input2_path):
         })
     return records
 
+
 # Visualization
+def add_bounding_boxes(plot, all_bounds, color=0x888888, width=0.5, name='volume'):
+    import numpy as np
 
-def draw_record_k3d(record):
-    plot = k3d.plot(grid_visible=False, camera_auto_fit=True)
+    cube_edges = np.array([
+        [0, 1], [1, 2], [2, 3], [3, 0],  # bottom
+        [4, 5], [5, 6], [6, 7], [7, 4],  # top
+        [0, 4], [1, 5], [2, 6], [3, 7],  # vertical
+    ], dtype=np.float32)
 
-    def add_points(plot, points, color, point_size=0.5, name="hits"):
-        if points.size > 0:
-            plot += k3d.points(points.astype(np.float32),
-                               point_size=point_size,
-                               color=color, name=name)
+    all_vertices = []
+    all_indices = []
+    offset = 0
 
-    # Input 1
-    add_points(plot, record['pgun']['selected'], 0x0000ff, name="pgun sel")   # Blue
-    add_points(plot, record['pgun']['deselected'], 0x00ffff, name="pgun desel") # Cyan
+    for bounds in all_bounds:
+        (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
 
-    # Input 2
-    add_points(plot, record['source']['selected'], 0xff0000, name="source sel")   # Red
-    add_points(plot, record['source']['deselected'], 0xffa500, name="source desel") # Orange
+        # Properly ordered corners
+        corners = np.array([
+            [xmin, ymin, zmin],  # 0
+            [xmax, ymin, zmin],  # 1
+            [xmax, ymax, zmin],  # 2
+            [xmin, ymax, zmin],  # 3
+            [xmin, ymin, zmax],  # 4
+            [xmax, ymin, zmax],  # 5
+            [xmax, ymax, zmax],  # 6
+            [xmin, ymax, zmax],  # 7
+        ], dtype=np.float32)
 
-    # Draw line from picked points
+        all_vertices.append(corners)
+        all_indices.append(cube_edges + offset)
+        offset += 8
+
+    vertices = np.vstack(all_vertices)
+    indices = np.vstack(all_indices)
+
+    box_lines = k3d.lines(vertices=vertices, indices=indices, color=color, indices_type='segment', width=width)
+    box_lines.name = name
+    box_lines.pickable = False
+    plot += box_lines
+
+
+def init_k3d_plot():
+
+    # def add_bounding_box(plot, bounds, color=0x888888, width=0.5):
+    #     (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
+    #     corners = np.array(list(product([xmin, xmax], [ymin, ymax], [zmin, zmax])), dtype=np.float32)
+    #     edges = [
+    #         [0, 1], [0, 2], [0, 4],
+    #         [1, 3], [1, 5],
+    #         [2, 3], [2, 6],
+    #         [3, 7],
+    #         [4, 5], [4, 6],
+    #         [5, 7],
+    #         [6, 7]
+    #     ]
+    #     for i1, i2 in edges:
+    #         segment = np.array([corners[i1], corners[i2]], dtype=np.float32)
+    #         line = k3d.line(segment, color=color, width=width, shader="simple", group="Detector Volume")
+    #         line.visible = True      # still show the lines
+    #         line.pickable = False    # optional: disable mouse picking
+    #         plot += line
+
+
+    # Add all static volumes once
+    boundaries = [
+        [[ 3.069, 33.34125], [-62.076, 62.076], [ 2.462, 64.538]],
+        [[63.931, 33.65875], [-62.076, 62.076], [ 2.462, 64.538]],
+        [[ 3.069, 33.34125], [-62.076, 62.076], [-64.538, -2.462]],
+        [[63.931, 33.65875], [-62.076, 62.076], [-64.538, -2.462]],
+        [[-63.931, -33.65875], [-62.076, 62.076], [ 2.462, 64.538]],
+        [[ -3.069, -33.34125], [-62.076, 62.076], [ 2.462, 64.538]],
+        [[-63.931, -33.65875], [-62.076, 62.076], [-64.538, -2.462]],
+        [[ -3.069, -33.34125], [-62.076, 62.076], [-64.538, -2.462]],
+    ]
+
+    plot = k3d.plot(grid_visible=False, grid_auto_fit=True, camera_auto_fit=True, height=700,)
+    add_bounding_boxes(plot, boundaries)
+    # for box in boundaries:
+    #     add_bounding_box(plot, box)
+
+    return plot
+
+
+def draw_record_k3d(record, plot, objects):
+    def update_points(name, points):
+        if points.size == 0:
+            objects[name].positions = np.empty((0, 3), dtype=np.float32)
+        else:
+            objects[name].positions = points.astype(np.float32)
+
+    update_points('pgun_sel', record['pgun']['selected'])
+    update_points('pgun_desel', record['pgun']['deselected'])
+    update_points('source_sel', record['source']['selected'])
+    update_points('source_desel', record['source']['deselected'])
+
+    # Line
     line_pts = np.array([record['line']['p_min'], record['line']['p_max']], dtype=np.float32)
-    plot += k3d.line(line_pts, color=0x000000, shader="simple", name="pgun track")
+    objects['track'].positions = line_pts
 
-    plot.display()
 
 def interactive_browser_k3d(records):
     options = [(f"E:{r['event_id']} R:{r['run_id']}", i) for i, r in enumerate(records)]
     dropdown = widgets.Dropdown(options=options, description='Event:')
     out = widgets.Output()
+    label_display = widgets.Text(value=options[0][0], layout=widgets.Layout(width='150px'), disabled=True)
 
-    def on_change(change):
+    # Navigation buttons
+    prev_button = widgets.Button(description='← Prev', layout=widgets.Layout(width='80px'))
+    next_button = widgets.Button(description='Next →', layout=widgets.Layout(width='80px'))
+
+    # Initialize static plot and dynamic objects
+    plot = init_k3d_plot()
+    objects = {
+        'pgun_sel': k3d.points(np.empty((0, 3), dtype=np.float32), color=0x0000ff, point_size=0.5, name='pgun_sel'),
+        'pgun_desel': k3d.points(np.empty((0, 3), dtype=np.float32), color=0x00ffff, point_size=0.5, name='pgun_desel'),
+        'source_sel': k3d.points(np.empty((0, 3), dtype=np.float32), color=0xff0000, point_size=0.5, name='source_sel'),
+        'source_desel': k3d.points(np.empty((0, 3), dtype=np.float32), color=0xffa500, point_size=0.5, name='source_desel'),
+        'track': k3d.line(np.empty((2, 3), dtype=np.float32), color=0x000000, shader="simple", name='track')
+    }
+
+    for obj in objects.values():
+        plot += obj
+
+    def update_view(index):
+        dropdown.value = index
+        label_display.value = options[index][0]
+
+    def on_dropdown_change(change):
         with out:
-            clear_output(wait=True)
-            draw_record_k3d(records[change['new']])
+            # clear_output(wait=True)
+            draw_record_k3d(records[change['new']], plot, objects)
+            label_display.value = options[change['new']][0]
 
-    dropdown.observe(on_change, names='value')
+    def on_prev_clicked(b):
+        if dropdown.value > 0:
+            update_view(dropdown.value - 1)
 
-    display(dropdown, out)
+    def on_next_clicked(b):
+        if dropdown.value < len(records) - 1:
+            update_view(dropdown.value + 1)
+
+    # Wire it up
+    dropdown.observe(on_dropdown_change, names='value')
+    prev_button.on_click(on_prev_clicked)
+    next_button.on_click(on_next_clicked)
+
+    # Layout
+    nav_row = widgets.HBox([prev_button, next_button, label_display])
+    ui = widgets.VBox([dropdown, nav_row, out, plot])
+
+    display(ui)
+    # Initial display
     with out:
-        draw_record_k3d(records[0])  # Show the first one by default
-
-# USAGE
-# path2 = 'your_input2_file.h5'
-# records = load_files(path2)
-# interactive_browser(records)
+        draw_record_k3d(records[dropdown.value], plot, objects)
