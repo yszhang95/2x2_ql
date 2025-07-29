@@ -130,13 +130,21 @@ def main():
                         help="Path to the output HDF5 file (required).")
     parser.add_argument("--dtype", choices=["hits", "effq"],
                         default="hits", help="hits or effq")
+    parser.add_argument("--no_sel", action="store_true",
+                        help="Do not select hits, use all hits in the source HDF5 file.")
+
     args = parser.parse_args()
+
+    fout_hdf5 = args.out_hdf5
+    if ("hits.hdf5" not in fout_hdf5) and ("effq.hdf5" not in fout_hdf5):
+        raise ValueError(f"Output HDF5 file name {fout_hdf5} must contain 'hits.hdf5' or "
+                         "'effq.hdf5' to indicate the type of data.")
 
     # global parameters
     dist_thres = 3  # cm
     dqdx_diff = 1
     dx_width = 2.0
-    qthres = 10
+    qthres = 10 if args.dtype == "hits" else 0
 
     p_min, p_max, event_ids, selected_source, deselected_source = \
         load_source_data(args.source_hdf5)
@@ -147,6 +155,9 @@ def main():
     dqdx_raw = []
     eids = []
     rids = []
+    dqdx_raw_src = []
+    trk_dist = []
+    trk_dist_src = []
     for ie in range(len(event_ids)):
         print(f"Event {ie}: id={event_ids[ie]}, p_min={p_min[ie]},"
               f" p_max={p_max[ie]} from {args.source_hdf5}")
@@ -163,19 +174,27 @@ def main():
             deselected_pts = [pts[i][~proj_masks[i]] for i in range(len(pts))]
 
         # compute dQdx in selected hits in source
-        _, dqdx_per_source, _, _ = compute_dqdx(selected_source[ie],
+        _, dqdx_per_source, p1, p2 = compute_dqdx(selected_source[ie],
                                                 dx_width, qthres)
+
+        dist_src = np.linalg.norm(p2 - p1)
+
         if len(dqdx_per_source) == 0:
             continue
         # mean dqdx of the an run/event in the source
         dqdx_mean_per_source = np.mean(dqdx_per_source)
         # filter out mean dqdx awayfrom the dqdx_mean by 2;
+
         dropped = []
+
         proj_min = []
         proj_max = []
         mean_dqdx_per_event = []
         eid_per_event = []
         rid_per_event = []
+        dqdx_raw_src_per_event = []
+        trk_dist_per_event = []
+        trk_dist_src_per_event = []
         for j, (sel, desel) in enumerate(zip(selected_pts, deselected_pts)):
             _, dqdx, pt_min, pt_max = compute_dqdx(sel, dx_width, qthres)
             proj_min.append(pt_min)
@@ -183,6 +202,9 @@ def main():
             mean_dqdx_per_event.append(np.mean(dqdx))
             eid_per_event.append(sel['event_id'][0])
             rid_per_event.append(event_ids[ie])
+            dqdx_raw_src_per_event.append(dqdx_mean_per_source)
+            trk_dist_per_event.append(np.linalg.norm(pt_max - pt_min))
+            trk_dist_src_per_event.append(dist_src)
             if len(dqdx) == 0:
                 dropped.append(True)
                 continue
@@ -192,9 +214,12 @@ def main():
                 dropped.append(True)
             else:
                 dropped.append(False)
-                print(np.abs(np.mean(dqdx) - dqdx_mean_per_source), dqdx_mean_per_source, np.mean(dqdx))
+                # print(np.abs(np.mean(dqdx) - dqdx_mean_per_source), dqdx_mean_per_source, np.mean(dqdx))
         # does not drop anything in effq
         if args.dtype == "effq":
+            dropped = []
+        if args.no_sel:
+            # if no selection, do not drop anything
             dropped = []
         for j in range(len(dropped)):
             ind = len(dropped) - j - 1
@@ -206,6 +231,9 @@ def main():
                 del proj_max[ind]
                 del eid_per_event[ind]
                 del rid_per_event[ind]
+                del dqdx_raw_src_per_event[ind]
+                del trk_dist_per_event[ind]
+                del trk_dist_src_per_event[ind]
 
         if len(selected_pts):
             # add a new field run id to event_ids from source ...
@@ -222,6 +250,9 @@ def main():
             dqdx_raw.append(np.array(mean_dqdx_per_event))
             eids.append(np.array(eid_per_event))
             rids.append(np.array(rid_per_event))
+            dqdx_raw_src.append(np.array(dqdx_raw_src_per_event))
+            trk_dist.append(np.array(trk_dist_per_event))
+            trk_dist_src.append(np.array(trk_dist_src_per_event))
 
             assert np.isnan(pts_minmax[-1]).sum() == 0, "NaN in pts_minmax"
             # desel_pts is meaningful only sel_pts passes quality
@@ -243,6 +274,12 @@ def main():
         fout.create_dataset('picked/direction/data', data=direction)
         fout.create_dataset('picked/dqdx_raw/data',
                             data=np.concatenate(dqdx_raw))
+        fout.create_dataset('picked/dqdx_raw_src/data',
+                            data=np.concatenate(dqdx_raw_src))
+        fout.create_dataset('picked/trk_dist/data',
+                            data=np.concatenate(trk_dist))
+        fout.create_dataset('picked/trk_dist_src/data',
+                            data=np.concatenate(trk_dist_src))
         fout.create_dataset('picked/event_id', data=np.concatenate(eids))
         fout.create_dataset('picked/run_id', data=np.concatenate(rids))
         fout.create_dataset('source_file', data=np.bytes_(args.source_hdf5))

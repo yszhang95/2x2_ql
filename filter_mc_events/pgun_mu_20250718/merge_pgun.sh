@@ -1,1 +1,18 @@
-uv run ../pick_pgun.py /home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_event_id{}_tred_hits.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_merged.hdf5
+# edit 20250718
+# echo "Hits"
+# uv run ../pick_pgun.py /home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_event_id{}_tred_hits.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_merged_hits.hdf5
+# echo "EffQ"
+# uv run ../pick_pgun.py --dtype=effq /home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_event_id{}_tred_effq.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_merged_effq.hdf5
+
+# edit 20250722
+# echo "Hits"
+# uv run ../pick_pgun.py /home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id{}_tred_hits.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_merged_hits.hdf5
+# echo "EffQ"
+# uv run ../pick_pgun.py --dtype=effq /home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id{}_tred_effq.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_merged_effq.hdf5
+
+# edit 20250724
+# same events as in 0722 because they are from variants of TRED setup, by changing ADC_HOLD_DELAY
+echo "Hits"
+uv run ../pick_pgun.py --no_sel /home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id{}_delay18_tred_hits.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_delay18_merged_hits.hdf5
+echo "EffQ"
+uv run ../pick_pgun.py --dtype=effq /home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id{}_delay18_tred_effq.hdf5" /home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_delay18_merged_effq.hdf5

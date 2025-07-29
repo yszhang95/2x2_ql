@@ -10,3 +10,71 @@ A =many_muons.hdf5= will be created in ~/path/to/output/~.
 *** Merge
 : uv run python merge.py /prefix/of/file [hits|effq]
 ** Event Display
+*** Check selections and raw dq/dx
+: cd check_selection && uv run app.py
+** Summary of workflow
+*** Preparation for data
+**** Pick track from event display
+Using customized =ndlar_flow=.
+**** Check dqdx for each track using event display.
+A dash + plotly app is under =check_selection=.
+: cd check_selection && uv run app.py
+Check and record the raw dqdx. Add them to the file ~event_list.txt~
+under the same directory of the picked data.
+**** Merge tracks to one event.
+Using scrtipt =merge.py=.
+: uv run merge.py /path/to/prefix [hits | effq]
+
+*** Preparation for MC
+
+**** (optional) particle generation from particle gun
+Clone the package MuonLArSim from github.
+- Generate mac file.
+  : python prepare.py
+- Generate csv files from mac files.
+  : /path/to/MuonLArSim /path/to/mac
+  A list of ~run_{id}_mu_{energy}_nt_MuonSteps.csv~ will be generated.
+- A transformation from =csv= to ~hdf5~ is done in
+  : uv run convert.py
+
+**** Produce npz files from TRED
+Run TRED:
+: uv run tred -c config.yaml fullsim -i input.hdf5 -o output.npz
+
+**** Convert =npz= to ~.hdf5~
+Using script =many_muons.py=.
+: uv run python many_muons.py /path/to/npz /path/to/output [hits|effq]
+
+I am editing the script
+: bash pgun_mu_20250718/run_tracks.sh
+
+**** Merge =.hdf5= files
+Events are filtered depending on raw dQ/dx. If no selections are
+necessary, supply =--no_sel= to the script.
+: uv run pick_pgun.py --no_sel "/path/to/a_event_id{}_b_hits.hdf5" /path/to/output/merged_hits.hdf5
+: uv run pick_pgun.py --dtype="effq" "/path/to/a_event_id{}_b_hits.hdf5" /path/to/output/merged_effq.hdf5
+
+I am editing the script
+: bash pgun_mu_20250718/merge_pgun.sh
+
+**** Filter the files in event display.
+Scripts are under =/pgun_display/=.
+: uv run jupyter lab
+Then open =event_display.ipynb= in jupyter.
+
+A text file will be generated, named ~selected_event_run_ids.txt~.
+
+A filter is employed using script =filter_hdf5.py=.
+: uv run filter_hdf5.py -o output.hdf5 input.hdf5 selected_event_run_ids.txt
+
+I am editing the script
+: bash pgun_display/run_filter.sh
+
+**** Convert =.hdf5= to ~.root~ files
+Scripts are, =asymmetry_prep2.py=, ~project_effq.py~, and =filter_data.py=.
+: uv run filter_data.py /path/to/input.hdf5
+: uv run asymmetry_prep2.py /path/to/input.hdf5 threshold_summary.hdf5 1
+: uv run project_effq.py /path/to/input.hdf5 0 1
+
+I am editing the script under =scripts=.
+: bash pgun_to_root.sh

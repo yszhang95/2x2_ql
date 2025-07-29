@@ -261,7 +261,11 @@ with uproot.recreate('track_data.root') as f:
 
     # fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
     # fh5 = h5py.File('check_selection/selected_data_small_angle/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
-    fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
+    try:
+        path = sys.argv[1]
+    except IndexError:
+        path = '/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5'
+    fh5 = h5py.File(path)
     # fh5 = h5py.File("web/many_muon_hits_selected.hdf5")
     dh5 = fh5['/selected/hits/data']
     data = dh5[:][np.argsort(dh5['event_id'])]

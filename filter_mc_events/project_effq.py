@@ -329,7 +329,7 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             sel_hits = sel_hits[sel_hits['io_group'] == itpc]
             if len(sel_hits) < 10:
                 continue
-            extended_hits = prep_per_event(sel_hits)
+            extended_hits = prep_per_event(sel_hits, check_dir=False)
             if len(extended_hits) < 10:
                 continue
 

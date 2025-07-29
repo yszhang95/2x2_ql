@@ -9,8 +9,16 @@ static std::string data_path = "../track_data.root";
 //static std::string effq_path = "../pgun_pid13_constR_transformed/many_muon_effq.root";
 // static std::string mc_path = "../web/pgun_mu_5GeV_20250708/many_muon_hits_selected.root";
 // static std::string effq_path = "../web/pgun_mu_5GeV_20250708/many_muon_effq.root";
-static std::string mc_path = "../web/pgun_mu_3GeV_20250709/many_muon_hits_selected.root";
-static std::string effq_path = "../web/pgun_mu_3GeV_20250709/many_muon_effq_selected.root";
+// static std::string mc_path = "../web/pgun_mu_3GeV_20250709/many_muon_hits_selected.root";
+// static std::string effq_path = "../web/pgun_mu_3GeV_20250709/many_muon_effq_selected.root";
+// static std::string mc_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_hits.root";
+// static std::string effq_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_effq.root";
+// static std::string mc_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_20250718_hits.root";
+// static std::string effq_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_20250718_effq.root";
+// static std::string mc_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_hits.root";
+// static std::string effq_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_effq.root";
+static std::string mc_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.root";
+static std::string effq_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.root";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
     // Load the ROOT file

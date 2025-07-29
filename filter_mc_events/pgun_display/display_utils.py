@@ -243,7 +243,6 @@ def interactive_browser_k3d(records):
     remove_button.on_click(on_remove_clicked)
     save_button.on_click(on_save_clicked)
 
-
     # Layout
     nav_row = widgets.HBox([prev_button, next_button, label_display])
 
