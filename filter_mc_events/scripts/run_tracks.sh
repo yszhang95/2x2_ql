@@ -21,7 +21,9 @@ for i in ${event_ids[@]}; do
    # edit 20250724
    # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id${i}_delay18_tred.npz"
    # edit 20250728; no reset time
-   InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id${i}_noreset_tred.npz"
+   # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id${i}_noreset_tred.npz"
+   # edit 20250728; delay 18 + no reset
+   InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id${i}_delay18_noreset_tred.npz"
 #    From =.npz= to =hdf5=, a format more compatatible with existing ND,
 # : uv run python many_muons.py /path/to/npz /path/to/output [hits|effq]
 # A =many_muons.hdf5= will be created in ~/path/to/output/~.
