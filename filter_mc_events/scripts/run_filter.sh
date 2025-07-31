@@ -21,8 +21,12 @@
 # OFile="pgun_mu_3GeV_2mm_20250730_xoffset_0p5cm_filtered_hits.hdf5"
 
 # edit 20250730; xoffset 1cm to anode
-IFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_merged_hits.hdf5"
-OFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_1p0cm_filtered_hits.hdf5"
+# IFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_merged_hits.hdf5"
+# OFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_1p0cm_filtered_hits.hdf5"
+
+# edit 20250730; xoffset 2cm to anode
+IFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_2p0cm_merged_hits.hdf5"
+OFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_2p0cm_filtered_hits.hdf5"
 
 
 OFileGroup=$(echo $OFile | sed 's/_hits\.hdf5/_*.hdf5/')
