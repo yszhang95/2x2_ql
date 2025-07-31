@@ -269,7 +269,8 @@ def prep_per_event(hits, itpc=None, highq_thres=None, check_dir=True):
     if check_dir and (not (para < 0.05)):
         # print(reg.coef_[0], reg.coef_[1])
         return np.array([], dtype=extended_hits.dtype)
-    return extended_hits
+
+    return extended_hits, uni_pxls, (k_x, b_x), (k_yz, b_yz)
 
 finpath = sys.argv[1]
 fdir = os.path.dirname(finpath)
@@ -307,14 +308,21 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
         raise KeyError("Neither '/selected/hits/data' nor '/hits' found in the file.")
     print(f"Loaded {hits_path}")
 
-    eids = hits['event_id']
+    # run id or event id?
+    eids = hits['run_id'] if 'run_id' in hits.dtype.names else hits['event_id']
     hits = hits[np.argsort(eids)]
-    eids = hits['event_id']
+    eids = hits['run_id'] if 'run_id' in hits.dtype.names else hits['event_id']
     groups = list(split_sorted_dataset(eids))
 
-    effq_eids = effq['event_id']
-    effq = effq[np.argsort(effq_eids)]
-    effq_eids = effq['event_id']
+    # effq_eids = effq['event_id']
+    # effq = effq[np.argsort(effq_eids)]
+    # effq_eids = effq['event_id']
+    # FIXME: I actually want combination of 'run_id' and 'event_id'
+    if 'run_id' in effq.dtype.names:
+        effq = effq[np.argsort(effq['run_id'])]  # sort by run_id
+    else:
+        effq = effq[np.argsort(effq['event_id'])]  # sort by event_id
+    effq_eids = effq['run_id'] if 'run_id' in effq.dtype.names else effq['event_id']
     effq_groups = list(split_sorted_dataset(effq_eids))
 
     assert len(effq_groups) == len(groups), 'assume the number of events of effq and hits are the same'
@@ -329,14 +337,14 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             sel_hits = sel_hits[sel_hits['io_group'] == itpc]
             if len(sel_hits) < 10:
                 continue
-            extended_hits = prep_per_event(sel_hits, check_dir=False)
+            extended_hits, uni_pxls, (k_x, b_x), (k_yz, b_yz)  = prep_per_event(sel_hits, check_dir=False)
             if len(extended_hits) < 10:
                 continue
 
             sel_effq = effq[effq_groups[ie][1]]
             sel_effq = sel_effq[sel_effq['io_group'] == itpc]
             print(len(sel_hits), len(sel_effq))
-            extended_effq = prep_per_event(sel_effq, check_dir=False)
+            extended_effq, uni_pxls, (k_x, b_x), (k_yz, b_yz) = prep_per_event(sel_effq, check_dir=False)
             print(len(extended_effq))
             xyz = np.vstack([extended_effq['x'], extended_effq['y'], extended_effq['z']]).T
             max_dist = np.max(pdist(xyz))
@@ -344,5 +352,31 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             distances.append(float(max_dist))
 
             out_effq.append(extended_effq)
+            # --------- plotting section inserted here ----------
+            fig, axs = plt.subplots(2,2, figsize=(10,8))
+            plot_three_views(extended_effq, axs=axs, label='extended effq')
+            axs[0,1].axis('off')
+            # Plot fitted direction (lines)
+            # x vs y
+            x_range = np.linspace(np.min(extended_effq['y']), np.max(extended_effq['y']), 100)
+            axs[0,0].plot(k_x * x_range + b_x, x_range, label='x-y fit', c='red')
+            # x vs z
+            z_range = np.linspace(np.min(extended_effq['z']), np.max(extended_effq['z']), 100)
+            k_xz, b_xz = line1D(uni_pxls['z'], uni_pxls['x'])
+            axs[1,0].plot(k_xz * z_range + b_xz, z_range, label='x-z fit', c='magenta')
+            # y vs z
+            y_range = np.linspace(np.min(extended_effq['y']), np.max(extended_effq['y']), 100)
+            axs[1,1].plot(y_range, k_yz * y_range + b_yz, label='y-z fit', c='purple')
+            for ax in [axs[0,0], axs[1,0], axs[1,1]]:
+                ax.legend()
+            event_label = 'run_id' if 'run_id' in extended_effq.dtype.names else 'event_id'
+            fig.suptitle(f"Event {int(extended_effq[event_label][0])} TPC {itpc}")
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            plot_dir = os.path.join(fdir, "event_plots")
+            if not os.path.exists(plot_dir):
+                os.makedirs(plot_dir)
+            plt.savefig(os.path.join(plot_dir, f'effq_event_{int(extended_effq[event_label][0])}_tpc_{itpc}.png'))
+            plt.close(fig)
+            # -----------
     f['mu_ndlar/effq'] = np.concatenate(out_effq)
     f['mu_ndlar/distances'] = { "distance" : np.array(distances)}

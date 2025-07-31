@@ -238,6 +238,7 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z'):
     extended_hits = rfn.append_fields(hits, names=['totQ', 'totN'], data=[totQ_cp, totN_cp], usemask=False)
     extended_hits = rfn.append_fields(extended_hits, names=['accQ', 'dt', 'avg_i', 'thres'], data=[accQ, dt, avg_i, ch_thres], usemask=False)
     extended_hits = rfn.append_fields(extended_hits, names=['tinterval', 'tindex'], data=[tinterval, tindex], usemask=False)
+
     return uni_pxl, extended_hits
 
 def prep_per_event(hits, itpc=None, highq_thres=None):
@@ -272,7 +273,8 @@ def prep_per_event(hits, itpc=None, highq_thres=None):
     # if not (para < 0.05):
     #     # print(reg.coef_[0], reg.coef_[1])
     #     return np.array([], dtype=extended_hits.dtype)
-    return extended_hits
+    # return extended_hits
+    return extended_hits, uni_pxls, (k_x, b_x), (k_yz, b_yz)
 
 finpath = sys.argv[1]
 fdir = os.path.dirname(finpath)
@@ -299,10 +301,11 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
     else:
         raise KeyError("Neither '/selected/hits/data' nor '/hits' found in the file.")
 
-    eids = hits['event_id']
+    # run id or event id?
+    eids = hits['run_id'] if 'run_id' in hits.dtype.names else hits['event_id']
     hits = hits[np.argsort(eids)]
-    eids = hits['event_id']
-    print(hits['event_id'])
+    eids = hits['run_id'] if 'run_id' in hits.dtype.names else hits['event_id']
+    # print(hits['event_id'])
     groups = list(split_sorted_dataset(eids))
     print(groups)
     out_hits = []
@@ -314,10 +317,9 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
                 continue
             sel_hits = hits[groups[ie][1]]
             sel_hits = sel_hits[sel_hits['io_group'] == itpc]
-            # print(np.unique(sel_hits['event_id']))
             if len(sel_hits) < 10:
                 continue
-            extended_hits = prep_per_event(sel_hits)
+            extended_hits, uni_pxls, (k_x, b_x), (k_yz, b_yz) = prep_per_event(sel_hits)
             if len(extended_hits) < 10:
                 print('filtered 2')
                 continue
@@ -326,7 +328,36 @@ with uproot.recreate(f'{fdir}/{fprefix}.root') as f:
             distances.append(float(max_dist))
             out_hits.append(extended_hits)
             print(ie, extended_hits['event_id'][0], max_dist)
-    #f[f'event{ie}/hits'] = hits
+            # --------- plotting section inserted here ----------
+            fig, axs = plt.subplots(2,2, figsize=(10,8))
+            plot_three_views(extended_hits, axs=axs, label='extended hits')
+            axs[0,0].scatter(uni_pxls['x'], uni_pxls['y'], label='clustered', color='orange')
+            axs[1,0].scatter(uni_pxls['x'], uni_pxls['z'], label='clustered', color='orange')
+            axs[1,1].scatter(uni_pxls['y'], uni_pxls['z'], label='clustered', color='orange')
+            axs[0,1].axis('off')
+            # Plot fitted direction (lines)
+            # x vs y
+            x_range = np.linspace(np.min(extended_hits['y']), np.max(extended_hits['y']), 100)
+            axs[0,0].plot(k_x * x_range + b_x, x_range, label='x-y fit', c='red')
+            # x vs z
+            z_range = np.linspace(np.min(extended_hits['z']), np.max(extended_hits['z']), 100)
+            k_xz, b_xz = line1D(uni_pxls['z'], uni_pxls['x'])
+            axs[1,0].plot(k_xz * z_range + b_xz, z_range, label='x-z fit', c='magenta')
+            # y vs z
+            y_range = np.linspace(np.min(extended_hits['y']), np.max(extended_hits['y']), 100)
+            axs[1,1].plot(y_range, k_yz * y_range + b_yz, label='y-z fit', c='purple')
+            for ax in [axs[0,0], axs[1,0], axs[1,1]]:
+                ax.legend()
+            event_label = 'run_id' if 'run_id' in extended_hits.dtype.names else 'event_id'
+
+            fig.suptitle(f"Event {int(extended_hits[event_label][0])} TPC {itpc}")
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            plot_dir = os.path.join(fdir, "event_plots")
+            if not os.path.exists(plot_dir):
+                os.makedirs(plot_dir)
+            plt.savefig(os.path.join(plot_dir, f'hits_event_{int(extended_hits[event_label][0])}_tpc_{itpc}.png'))
+            plt.close(fig)
+            # --------------------------------------------------
     f['mu_ndlar/hits'] = np.concatenate(out_hits)
     f['mu_ndlar/distances'] = { "distance" : np.array(distances)}
     print('d', distances)
