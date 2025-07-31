@@ -37,6 +37,8 @@ Clone the package MuonLArSim from github.
 - A transformation from =csv= to ~hdf5~ is done in
   : uv run convert.py
 
+An example is given in =convert_xoffset.sh=.
+
 **** Produce npz files from TRED
 Run TRED:
 : uv run tred -c config.yaml fullsim -i input.hdf5 -o output.npz
