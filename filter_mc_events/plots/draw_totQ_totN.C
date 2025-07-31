@@ -19,12 +19,17 @@ static std::string data_path = "../track_data.root";
 // static std::string effq_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_effq.root";
 // static std::string mc_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_20250718_hits.root";
 // static std::string effq_path = "../pgun_mu_20250718/pgun_20250718/filtered_pgun_3GeV_2mm_20250718_effq.root";
+
+// edit 20250722; default
 // static std::string mc_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_hits.root";
 // static std::string effq_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_effq.root";
+// edit 20250722; default setup bug fix; file renamed
+static std::string mc_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_hits.root";
+static std::string effq_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_effq.root";
 
 // edit 20250724; delay 18; bug fix
-static std::string mc_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.root";
-static std::string effq_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.root";
+// static std::string mc_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.root";
+// static std::string effq_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.root";
 
 // edit 20250728; no reset
 // static std::string mc_path = "../pgun_mu_20250728/pgun_mu_3GeV_2mm_20250728_noreset_filtered_hits.root";

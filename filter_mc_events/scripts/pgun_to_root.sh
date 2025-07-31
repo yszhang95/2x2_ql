@@ -13,9 +13,12 @@
 # mv ../pgun_display/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.hdf5  \
 #    ../pgun_mu_20250724/
 
+# edit 20250722; default setup; bug fix
+HitInFile="../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_hits.hdf5"
+
 # edit 20250724; delay 18; bug fix
-HitInFile="../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.hdf5"
-QInFile="../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.hdf5"
+# HitInFile="../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.hdf5"
+# QInFile="../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_effq.hdf5"
 
 # edit 20250728; no reset
 # HitInFile="../pgun_mu_20250728/pgun_mu_3GeV_2mm_20250728_noreset_filtered_hits.hdf5"

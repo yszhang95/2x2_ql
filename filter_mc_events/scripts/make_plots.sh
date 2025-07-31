@@ -22,3 +22,4 @@ mv *.png $abs_output_dir
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250728_delay18_noreset_bugfix/
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250728_noreset_bugfix/
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250724_delay18_bugfix/
+# ./make_plots.sh ../plots/pgun_3GeV_2mm_20250722_bugfix/
