@@ -26,10 +26,10 @@
 # HitInFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_0p5cm_filtered_hits.hdf5"
 
 # edit 20250730; xoffset 1cm to anode
-# HitInFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_1p0cm_filtered_hits.hdf5"
+HitInFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_1p0cm_filtered_hits.hdf5"
 
 # edit 20250730; xoffset 2cm to anode
-HitInFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_2p0cm_filtered_hits.hdf5"
+# HitInFile="../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_2p0cm_filtered_hits.hdf5"
 
 # replace _hits with _effq in bash
 QInFile="${HitInFile/_hits.hdf5/_effq.hdf5}"
