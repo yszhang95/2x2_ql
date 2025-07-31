@@ -27,9 +27,9 @@ for i in ${event_ids[@]}; do
    # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_event_id${i}_delay18_noreset_tred.npz"
 
    # edit 20250730; xoffset 0.5cm to anode
-   InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id${i}_tred.npz"
+   # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id${i}_tred.npz"
    # edit 20250730; xoffset 1cm to anode
-   # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_event_id${i}_tred.npz"
+   InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_event_id${i}_tred.npz"
    # edit 20250730; xoffset 2cm to anode
    # InFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_2p0cm_event_id${i}_tred.npz"
 

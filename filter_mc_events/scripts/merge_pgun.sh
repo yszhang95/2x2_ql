@@ -36,11 +36,19 @@
 # QOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_delay18_noreset_merged_effq.hdf5"
 
 # edit 20250730; xoffset 0.5cm to anode
-SrcFile="/home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "
-HitFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id{}_tred_hits.hdf5"
-HOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_merged_hits.hdf5"
-EffQFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id{}_tred_effq.hdf5"
-QOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_merged_effq.hdf5"
+# SrcFile="/home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 "
+# HitFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id{}_tred_hits.hdf5"
+# HOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_merged_hits.hdf5"
+# EffQFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_event_id{}_tred_effq.hdf5"
+# QOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_0p5cm_merged_effq.hdf5"
+
+# edit 20250730; xoffset 1cm to anode
+SrcFile="/home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5"
+HitFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_event_id{}_tred_hits.hdf5"
+HOFile="/home/yousen/Documents/NDLAr2x2/MuonLArSim/build/pgun_mu_3GeV_2mm_xoffset_1p0cm_merged_hits.hdf5"
+
+EffQFile=${HitFile/_hits.hdf5/_effq.hdf5}
+QOFile=${HOFile/_hits.hdf5/_effq.hdf5}
 
 echo "Hits"
 uv run ../pick_pgun.py --no_sel $SrcFile $HitFile $HOFile
