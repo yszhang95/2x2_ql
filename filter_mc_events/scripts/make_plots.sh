@@ -20,3 +20,5 @@ mv *.png $abs_output_dir
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250730_xoffset_1p0cm_bugfix/
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250730_xoffset_0p5cm_bugfix/
 # ./make_plots.sh ../plots/pgun_3GeV_2mm_20250728_delay18_noreset_bugfix/
+# ./make_plots.sh ../plots/pgun_3GeV_2mm_20250728_noreset_bugfix/
+# ./make_plots.sh ../plots/pgun_3GeV_2mm_20250724_delay18_bugfix/
