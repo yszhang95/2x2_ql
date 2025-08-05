@@ -1,4 +1,16 @@
 * README
+** Data format in several files
+*** Picked hits from event display in data
+├── deselected
+│   └── hits
+│       └── data (structured array, size: NHits)
+├── picked
+│   ├── direction (size: Nevt)
+│   ├── event_id (size: Nevt)
+│   └── points (size: (Nevt, 2))
+└── selected
+    └── hits
+        └── data (structured array, size: NHits)
 ** Conversion
 From =.npz= to =hdf5=, a format more compatatible with existing ND,
 : uv run python many_muons.py /path/to/npz /path/to/output [hits|effq]

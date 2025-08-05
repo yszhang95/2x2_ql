@@ -1,0 +1,32 @@
+Output is from
+#+begin_src shell
+  uv run scaleq_reflowv5.py \
+       --scaleq=0.87873462 \
+       ~/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5 \
+       ~/Public/ndlar_shared/data_reflowv5_20250805_scale4to4p522/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5
+#+end_src
+where 0.87873462 is 4/4.522.
+
+The first few hits in input is
+#+begin_src jupyter-python :session /ssh:yousen@heracles:/tmp/jupyter_local_kernel.json
+  import h5py
+  import numpy as np
+  f1inpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250722/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5"
+  f2inpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250805_scale4to4p522/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5"
+  with h5py.File(f1inpath) as f1in, h5py.File(f2inpath) as f2in:
+      print("Original file, first ten hits' Q\n", f1in["selected/hits/data"]["Q"][:10])
+      print("Updated file, first ten hits' Q\n", f2in["selected/hits/data"]["Q"][:10])
+      print("Ratio, updated/origin, of first ten hits' Q\n",
+            f2in["selected/hits/data"]["Q"][:10]/f1in["selected/hits/data"]["Q"][:10])
+#+end_src
+
+#+RESULTS:
+: Original file, first ten hits' Q
+:  [28.71393531 65.01637597  3.76609755 15.80712389 46.56980885 22.92449599
+:  20.17727215 12.97244662 14.0585416  17.89992164]
+: Updated file, first ten hits' Q
+:  [25.23192903 57.13214043  3.3094003  13.890267   40.92250329 20.14454827
+:  17.73046758 11.39933795 12.35372721 15.72928084]
+: Ratio, updated/origin, of first ten hits' Q
+:  [0.87873462 0.87873462 0.87873462 0.87873462 0.87873462 0.87873462
+:  0.87873462 0.87873462 0.87873462 0.87873462]
