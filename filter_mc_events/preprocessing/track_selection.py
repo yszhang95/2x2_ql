@@ -7,7 +7,7 @@
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
 from numpy.lib import recfunctions as rfn
@@ -91,7 +91,7 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     direction = pca.components_[0]
     if explained_ratio < pca_tolerance:
         ok = False
-        return ok, None, None, None, None
+        return ok, None, None, None, None, None
 
     projections = points @ direction
 
@@ -114,11 +114,16 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     explained_ratio = pca.explained_variance_ratio_[0]
     if explained_ratio < pca_tolerance:
         ok = False
-        return ok, None, None, None, None
+        return ok, None, None, None, None, None
 
     dropped_hits = hits[~mask]
+    # new projection
+    projections = (selected_xyz - centroid) @ direction
+    pmin = selected_hits[np.argmin(projections)]
+    pmax = selected_hits[np.argmax(projections)]
+    pminpmax = np.hstack((pmin, pmax))
 
-    return ok, direction, centroid, selected_hits, dropped_hits
+    return ok, direction, centroid, selected_hits, dropped_hits, pminpmax
 
 
 def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, cluster_id):
@@ -286,11 +291,12 @@ def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, clus
         f"Event {eid} - IO Group {io_group} - Cluster {cluster_id}", fontsize=16
     )
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
+    # plt.show()
 
 
 def main():
-    finpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.hdf5"
+    # finpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.hdf5"
+    finpath = "./packet-0050018-2024_07_11_14_29_17_CDT.FLOW.hdf5"
 
     n_min_hits_global = 20
 
@@ -302,12 +308,21 @@ def main():
     hits, uni_event_ids = load_file(finpath)
     hits = filter_min_n_ext_trigs(hits, n_ext_trigs=1)
 
-    for eid in uni_event_ids[:10]:
+    selected = []
+    deselected = []
+    picked = {
+        "direction" : [],
+        "event_id" : [],
+        "points" : [],
+    }
+
+    for eid in uni_event_ids[:500]:
         event_hits = load_event(hits, eid)
         # print(f"Event {eid} has {len(event_hits)} hits.")
         for io_group in np.unique(event_hits["io_group"]):
             io_group_hits = load_io_group(event_hits, io_group)
             if len(io_group_hits) < n_min_hits_global:
+                # print("not enough hits in IO group, skipping")
                 continue
             # print(f"  IO group {io_group} has {len(io_group_hits)} hits.")
             clustered_hits = cluster_hits(
@@ -320,26 +335,44 @@ def main():
             track_hits = []
 
             for selected_hits in clustered_hits:
-                track_ok, direction, centroid, fitted_hits, dropped_hits = (
+                track_ok, direction, centroid, fitted_hits, dropped_hits, pminpmax = (
                     track_fitting(selected_hits, pca_tolerance=0.1, cut_fraction=0.15)
                 )
                 if not track_ok:
                     continue
                 cluster_id = np.unique(selected_hits["cluster_id"])
-                print(cluster_id)
                 assert len(cluster_id) == 1, "More than one cluster found"
                 # print(f"Event {eid}, IO group {io_group},"
                 #       f" Cluster {cluster_id}: Track found with direction"
                 #       f"{direction} and centroid {centroid}, {len(fitted_hits)}"
                 #       f" hits used for fitting.")
                 track_hits.append(
-                    (fitted_hits, dropped_hits, direction, centroid, cluster_id[0])
+                    (fitted_hits, dropped_hits, direction, centroid, cluster_id[0], pminpmax)
                 )
-            selected_track = track_hits[np.argmax([len(th[0]) for th in track_hits])]
+
+            if track_hits == []:
+                isel = len(clustered_hits)
+            else:
+                isel = np.argmax([len(th[0]) for th in track_hits])
+            for i in range(len(clustered_hits)):
+                # print("isel", isel, "len", len(clustered_hits))
+                if i != isel:
+                    deselected.append(clustered_hits[i])  # everything except the selected
+
+            if isel == len(track_hits):
+                print(f"Event {eid}, IO group {io_group}: No track found.")
+                continue
+            selected_track = track_hits[isel]
+            deselected.append(selected_track[1])  # dropped hits
+
+            # selected track is the one with maximum number of hits
+            selected.append(selected_track[0])
+            picked["direction"].append(selected_track[2])
+            picked["event_id"].append(eid)
+            picked["points"].append(selected_track[5])
 
             clustered_hits = np.concatenate(clustered_hits)
             print(len(clustered_hits), len(selected_track[0]))
-
 
             plot_track(
                 hits=clustered_hits,
@@ -347,13 +380,46 @@ def main():
                 dropped=selected_track[1],
                 direction=selected_track[2],
                 centroid=selected_track[3],
-                edi=eid,
+                eid=eid,
                 io_group=io_group,
                 cluster_id=selected_track[4],
             )
 
+    # concatenate all selected_track
 
-main()
+    if len(deselected) == 0:
+        print("No tracks deselected.")
+        deselected = np.zeros((0,), dtype=hits.dtype)
+    else:
+        deselected = np.concatenate(deselected)
+    if len(selected) == 0:
+        print("No tracks selected.")
+        selected = np.zeros((0,), dtype=hits.dtype)
+        picked["direction"] = np.zeros((0, 3), dtype=np.float64)
+        picked["event_id"] = np.array([], dtype=np.int64)
+        picked["points"] = np.zeros((0, 6), dtype=np.float64)
+    else:
+        selected = np.concatenate(selected)
+        picked["direction"] = np.vstack(picked["direction"])
+        picked["event_id"] = np.array(picked["event_id"])
+        picked["points"] = np.vstack(picked["points"])
+
+    # save output to hdf5
+    with h5py.File("selected_tracks.hdf5", "w") as fout:
+        fout.create_group("selected")\
+            .create_group("hits").create_dataset("data", data=selected)
+        fout.create_group("deselected")\
+            .create_group("hits").create_dataset("data", data=deselected)
+
+        fout.require_group("/hits")
+
+        fout["/hits/selected/data"] = h5py.SoftLink("/selected/hits/data")
+        fout["/hits/deselected/data"] = h5py.SoftLink("/deselected/hits/data")
+
+        fout.create_dataset("picked/direction/data", data=picked["direction"])
+        fout.create_dataset("picked/event_id/data", data=picked["event_id"])
+        fout.create_dataset("picked/points/data", data=picked["points"])
+
 
 if __name__ == "__main__":
     main()
