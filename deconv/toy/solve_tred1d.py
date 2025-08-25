@@ -261,6 +261,7 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
             "B": B,
             "x_hat": x_hat,       # length K (block sums)
             "x_pinv": x_pinv,     # baseline identifiable part
+            "tstart" : min_start, # starting time index for this group
         })
     else:
         if K is not None and (N % K != 0):
