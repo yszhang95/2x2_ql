@@ -270,6 +270,74 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
     return result
 
 
+def condense_effq_by_pxpy(effq, effq_loc, spacing=50, px_col=0, py_col=1, t_col=2, drop_zero_bins=True):
+    """
+    Group by (px, py), bin time t into [k*spacing, (k+1)*spacing) bins,
+    and sum effq weights inside each bin.
+
+    Returns:
+      dict keyed by (px, py) -> {
+          "bin_left": 1D array of left edges,
+          "bin_right": 1D array of right edges,
+          "sum": 1D array of accumulated effq per bin,
+          "bin_index": 1D array of integer bin indices (for reference)
+      }
+    """
+    effq = np.asarray(effq, dtype=float).reshape(-1)
+    effq_loc = np.asarray(effq_loc)
+
+    if effq_loc.ndim != 2 or effq_loc.shape[1] <= max(px_col, py_col, t_col):
+        raise ValueError("effq_loc must be a 2D array with at least three columns [px, py, t].")
+
+    if len(effq) != len(effq_loc):
+        raise ValueError("effq and effq_loc must have the same length.")
+
+    px = effq_loc[:, px_col]
+    py = effq_loc[:, py_col]
+    t  = effq_loc[:, t_col]
+
+    # Bin index: k = floor(t / spacing), clamp negatives to 0
+    bin_idx_all = np.floor(t / spacing).astype(int)
+    bin_idx_all[bin_idx_all < 0] = 0
+
+    # Unique groups by (px, py)
+    pairs = np.stack([px, py], axis=1)
+    uniq_pairs, inv = np.unique(pairs, axis=0, return_inverse=True)
+
+    result = {}
+    for gi, (px_val, py_val) in enumerate(uniq_pairs):
+        sel = (inv == gi)
+        if not np.any(sel):
+            continue
+
+        bins_g = bin_idx_all[sel]
+        effq_g = effq[sel]
+
+        nbins = int(np.max(bins_g)) + 1  # cover [0, ..., max_bin]
+        sums = np.bincount(bins_g, weights=effq_g, minlength=nbins)
+
+        # Build edges for readability
+        bin_left = np.arange(nbins) * spacing
+        bin_right = bin_left + spacing
+
+        if drop_zero_bins:
+            nz = sums != 0
+            bin_left = bin_left[nz]
+            bin_right = bin_right[nz]
+            sums = sums[nz]
+            bins_out = np.arange(nbins)[nz]
+        else:
+            bins_out = np.arange(nbins)
+
+        result[(px_val, py_val)] = {
+            "bin_left": bin_left,
+            "bin_right": bin_right,
+            "sum": sums,
+            "bin_index": bins_out
+        }
+
+    return result
+
 # -------------
 # Main routine
 # -------------
@@ -327,6 +395,12 @@ def main():
     print(f"Kernel: len(fr)={len(fr)}, sum(fr)={np.sum(fr):.6g}")
     print(f"Solving with lam={args.lam}, K={args.K} (block est. only if N divisible by K)")
     print("-" * 80)
+
+
+    effq = npz["effq_tpc0_batch10"][:,-1]
+    effq_loc = npz["effq_tpc0_batch10_location"]  # columns: [px, py, t]
+    condensed = condense_effq_by_pxpy(effq, effq_loc, spacing=50)
+    # condensed = condense_effq_by_pxpy(effq, effq_loc, spacing=1, drop_zero_bins=False)
 
     # Solve per group
     for gi, (px_val, py_val) in enumerate(uniq_pairs):
