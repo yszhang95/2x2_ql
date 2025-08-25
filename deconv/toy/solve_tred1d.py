@@ -41,6 +41,9 @@ Notes
 import argparse
 import numpy as np
 import scipy.linalg
+import scipy.optimize
+
+import matplotlib.pyplot as plt
 
 
 # -------------------------
@@ -56,7 +59,6 @@ def load_fr(fr_path, scale=0.1, tail=0):
         raise ValueError
     arr = np.load(fr_path)
     if arr.ndim == 3:
-        # fr_raw = arr[0, 0, -tail:]
         fr_raw = arr[0, 0, ]
     # elif arr.ndim == 1:
     #     fr_raw = arr[-min(tail, arr.shape[0]):]
@@ -86,7 +88,7 @@ def build_Ae_from_pt(hts_pt0, hts_pt1, T, reset_time=2, end_exclusive=True):
     """
     M = len(hts_pt0) + 1
     Ae = np.zeros((M, T), dtype=np.float64)
-    assert hts_pt0[0] > 0
+    assert hts_pt0[0] >= 0
     Ae[0, 0:hts_pt0[0]] = 1.0  # pre-window zeros
     Ae[1, hts_pt0[0]:hts_pt1[0]] = 1.0  # pre-window zeros
     if end_exclusive:
@@ -178,6 +180,7 @@ def solve_block_ridge_full(A, y, C, W, lam):
     rhs = np.vstack([rhs1, rhs2])
 
     sol = np.linalg.lstsq(KKT, rhs, rcond=None)[0]
+    # sol = scipy.optimize.nnls(KKT, rhs)[0]
     u = sol[:C.shape[1]]
     v = sol[C.shape[1]:]
     return u, v
@@ -197,8 +200,8 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
     Returns a dict with results and a small summary.
     """
     # Determine total length T from pt1. Assume pt1 is an exclusive end by default.
-    post_n = 1  # assume 1 extra spacing after last hit if signal is too small to detect; signal is assumed to be no earlier than first hit.
-    pre_n = 1 # assume 1 extra spacing before first hit, which is from suppression of induction
+    post_n = 0  # assume 1 extra spacing after last hit if signal is too small to detect; signal is assumed to be no earlier than first hit.
+    pre_n = 0 # assume 1 extra spacing before first hit, which is from suppression of induction
     max_end = int(np.max(pt1_group)) // spacing * spacing + spacing * post_n + spacing
     min_start = int(np.min(pt0_group)) // spacing * spacing - spacing * pre_n
     # T = max_end if end_exclusive else (max_end + 1)
@@ -220,13 +223,17 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
         }
 
     # truncate time to index
-    pt0_group = pt0_group - min_start
-    pt1_group = pt1_group - min_start
+    pt0_group = pt0_group - (max_end  - T) - (len(fr) - np.argmax(fr)) + 1
+    pt1_group = pt1_group - (max_end  - T) - (len(fr) - np.argmax(fr)) + 1
 
     # Build matrices
     frm = build_frm(fr, N)                             # (T, N)
     Ae  = build_Ae_from_pt(pt0_group, pt1_group, T, reset_time=2, end_exclusive=end_exclusive)  # (M, T)
     A   = Ae @ frm                                     # (M, N)
+    print(np.max(A), np.min(A))
+    print("Ae", np.sum(Ae[0]), np.sum(Ae[1]))
+    print("A", np.sum(A[0]), np.sum(A[1]))
+    print(np.max(frm), np.min(frm))
     # build y
     y = np.zeros((len(hqs_group)+1,), dtype=np.float64)
     y[1:] = hqs_group
@@ -247,11 +254,15 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
         "M": A.shape[0],
         "residual_norm": float(resid),
         "q_hat": q_hat,          # length N
+        "A" : A,
+        "Ae" : Ae,
+        "frm" : frm,
     }
 
     # Optional: block estimate like your example
     if K is not None and K > 0 and (N % K == 0):
         B, R, C, W = build_block_ops(N, K)
+        # print('B', B, 'R', R, 'C', C, 'W', W)
         y_vec = y.reshape(-1, 1)
         u, v = solve_block_ridge_full(A, y_vec, C, W, lam=max(lam, 0.0))
         x_hat = (B * u).reshape(-1)
@@ -262,6 +273,7 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
             "x_hat": x_hat,       # length K (block sums)
             "x_pinv": x_pinv,     # baseline identifiable part
             "tstart" : min_start, # starting time index for this group
+            "residual" : np.linalg.norm(y_vec[:,0] - A @ C @ u - A @ W @ v),
         })
     else:
         if K is not None and (N % K != 0):
@@ -435,10 +447,23 @@ def main():
             xsum = float(np.sum(res["x_hat"]))
             xpinv_sum = float(np.sum(res["x_pinv"]))
             print(f"  x_hat (K={res['K']}, B={res['B']}): {res['x_hat'].round(6)}")
+            print(f"  x_pinv: {res['x_pinv'].round(6)}")
             print(f"  sum(x_hat)={xsum:.6g}, sum(x_pinv)={xpinv_sum:.6g}")
+            print(f"  time: {res['tstart']} to {res['tstart'] + res['N'] - 1} (len={res['N']})")
+            print(f"  residual ||y - A C u - A W v|| = {res['residual']:.6g}")
         elif "block_warning" in res:
             print(f"  Note: {res['block_warning']}")
 
+        print(f"  effq: {np.sum(condensed.get((px_val, py_val), {'sum': np.array([])})['sum'])}", f"time: {condensed.get((px_val, py_val), {'bin_left': np.array([])})['bin_left']}")
+        print(f"  recorded hits: {np.sum(hqs_g)}", hqs_g)
+
+        q = np.r_[5, hqs_g]
+        q[1] = q[1] - 5
+        # print(res["A"]@np.kron(np.ones(50,), res["x_hat"])/50, hqs_g, q)
+        # print(condensed.get((px_val, py_val))['sum'][-len(q)*spacing:].shape, res["A"].shape)
+        # print(res["A"]@condensed.get((px_val, py_val))['sum'][-res["A"].shape[1]:], res["A"].shape)
+        # plt.plot(res["A"][0])
+        # plt.savefig("A0.png")
         print("-" * 80)
 
 
