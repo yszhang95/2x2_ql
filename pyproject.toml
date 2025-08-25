@@ -29,3 +29,7 @@ line-length = 88
 
 [tool.ruff.format]
 quote-style = "double"
+
+[[tool.mypy.overrides]]
+module = ["h5py.*", "numpy.*", "matplotlib.*", "sklearn.*", "mpl_toolkits.*"]
+ignore_missing_imports = true

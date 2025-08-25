@@ -256,8 +256,12 @@ def prep_per_event(hits, highq_thres=None):
     #     pass
     return extended_hits
 
+try:
+    oroot = sys.argv[2]
+except IndexError:
+    oroot = 'track_data.root'
 
-with uproot.recreate('track_data.root') as f:
+with uproot.recreate(oroot) as f:
 
     # fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
     # fh5 = h5py.File('check_selection/selected_data_small_angle/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
