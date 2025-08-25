@@ -200,8 +200,8 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
     Returns a dict with results and a small summary.
     """
     # Determine total length T from pt1. Assume pt1 is an exclusive end by default.
-    post_n = 0  # assume 1 extra spacing after last hit if signal is too small to detect; signal is assumed to be no earlier than first hit.
-    pre_n = 0 # assume 1 extra spacing before first hit, which is from suppression of induction
+    post_n = 1  # assume 1 extra spacing after last hit if signal is too small to detect; signal is assumed to be no earlier than first hit.
+    pre_n = 1 # assume 1 extra spacing before first hit, which is from suppression of induction
     max_end = int(np.max(pt1_group)) // spacing * spacing + spacing * post_n + spacing
     min_start = int(np.min(pt0_group)) // spacing * spacing - spacing * pre_n
     # T = max_end if end_exclusive else (max_end + 1)
@@ -225,6 +225,8 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam=0.0, K=Non
     # truncate time to index
     pt0_group = pt0_group - (max_end  - T) - (len(fr) - np.argmax(fr)) + 1
     pt1_group = pt1_group - (max_end  - T) - (len(fr) - np.argmax(fr)) + 1
+    # pt0_group = pt0_group - int(10.431/0.16 // 0.05)
+    # pt1_group = pt1_group - int(10.431/0.16 // 0.05)
 
     # Build matrices
     frm = build_frm(fr, N)                             # (T, N)
