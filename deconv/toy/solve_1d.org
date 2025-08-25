@@ -1,0 +1,269 @@
+* GOGOGO
+#+JUPYTER-NOTEBOOK: :session ~/Library/Jupyter/runtime/kernel-f8ff2783-413e-4683-b5b4-cb7de227ca7e.json
+
+#+begin_src jupyter-python
+  import numpy as np
+  import scipy
+
+  import matplotlib.pyplot as plt
+
+  def load_fr():
+      fr = np.load("./response_44_v2a_100ns.npy")
+      return fr[0, 0, -400::1] * 0.1
+
+  fr = load_fr()
+  print(np.sum(fr))
+#+end_src
+
+#+RESULTS:
+: 0.9945906101142389
+
+#+begin_src jupyter-python
+  def qtoi1d(q, fr):
+      return np.convolve(q, fr)
+
+  def qgaus(q, sigma):
+      std = np.arange(np.floor(-3 * sigma), np.ceil(3 * sigma) + 0.5, 1)
+      std = 1/(np.sqrt(2*np.pi) * sigma) * np.exp(-std**2/2/sigma**2)
+      print(np.sum(std))
+      return np.convolve(q, std)
+
+  q = np.zeros(48,)
+  q[2] = 40
+  q[20] = 50
+  q[30] = 90
+  sigma = 2
+  print(np.sum(q))
+
+  q = qgaus(q, sigma)
+  print(np.sum(q))
+
+  current = qtoi1d(q, fr)
+  print(np.sum(fr))
+  print(np.sum(current))
+
+  plt.plot(current)
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+: 180.0
+: 0.9989759025687457
+: 179.81566246237418
+: 0.9945906101142389
+: 178.84296943654883
+| <matplotlib.lines.Line2D | at | 0x1250fe120> |
+[[file:./.ob-jupyter/dc885325669a1bd7e6211b080e3d21829665f1f5.png]]
+:END:
+
+OK
+#+begin_src jupyter-python
+  def readout(current, thres=5, downtime=12, hold=16, reset=1):
+      q = []
+      tt = []
+      Q = np.add.accumulate(current)
+      tmin = 0  # earliest allowed trigger
+      while np.any(Q > thres):
+          it = np.argmax(Q > thres)
+          if Q[it + hold] > thres:
+              # triggered
+              # reset charge
+              Q[it + hold + reset + 1 :] = (
+                  Q[it + hold + reset + 1 :] - Q[it + hold + reset]
+              )
+              q.append(Q[it + hold])
+              tt.append((np.max([0, tmin-downtime+reset]), it, it + hold + 1))
+          tmin = it + hold + downtime + 1
+          Q[:tmin] = 0
+      return np.array(q), np.array(tt)
+#+end_src
+
+#+RESULTS:
+
+OK
+
+#+begin_src jupyter-python
+  thres = 5
+  hqs, hts = readout(current, thres)
+
+  # reshape hqs, hts
+  hqs = np.r_[thres, hqs]
+  hqs[1] = hqs[1] - thres
+  hts = np.r_[np.array([0, 0, hts[0,1]])[None,:], hts]
+  hts[1, 0] = hts[1,1]
+
+  print(hqs, hts, np.sum(current))
+#+end_src
+
+#+RESULTS:
+: [  5.           4.93721668  51.58610089 113.64756397] [[  0   0 259]
+:  [259 259 276]
+:  [277 288 305]
+:  [306 317 334]] 178.84296943654883
+
+
+Build Afr
+#+begin_src jupyter-python
+  frm = scipy.linalg.toeplitz(np.r_[fr, np.zeros(len(q)-1)], np.r_[fr[0], np.zeros(len(q) -1)])
+  print(frm.shape, q.shape)
+  int(np.allclose(current, frm@q))
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+: (459, 60) (60,)
+: 1
+:END:
+
+
+Build Ae
+#+begin_src jupyter-python
+  print(hts, hqs)
+  Ae = np.zeros((len(hts), frm.shape[0]),)
+  for irow in range(Ae.shape[0]):
+      print(irow, hts[irow,0], hts[irow,2])
+      Ae[irow, hts[irow,0]:hts[irow,2]] = 1
+  print(Ae)
+#+end_src
+
+#+RESULTS:
+#+begin_example
+  [[  0   0 259]
+   [259 259 276]
+   [277 288 305]
+   [306 317 334]] [  5.           4.93721668  51.58610089 113.64756397]
+  0 0 259
+  1 259 276
+  2 277 305
+  3 306 334
+  [[1. 1. 1. ... 0. 0. 0.]
+   [0. 0. 0. ... 0. 0. 0.]
+   [0. 0. 0. ... 0. 0. 0.]
+   [0. 0. 0. ... 0. 0. 0.]]
+#+end_example
+
+Build A
+#+begin_src jupyter-python
+  A = Ae@frm
+  print(A.shape, q.shape)
+  print(A@q, "\n", hqs, "\n", A@q-hqs)
+#+end_src
+
+#+RESULTS:
+: (4, 60) (60,)
+: [  4.96038708   4.97682961  51.58610089 113.64756397]
+:  [  5.           4.93721668  51.58610089 113.64756397]
+:  [-3.96129246e-02  3.96129246e-02  7.10542736e-15  2.84217094e-14]
+
+
+#+begin_src jupyter-python
+  def build_block_ops(N, K):
+      assert N % K == 0, "N must be divisible by K"
+      B = N // K
+      oneB = np.ones((B, 1))
+      I_K = np.eye(K)
+
+      R = np.kron(I_K, oneB.T)          # K x N
+      C = np.kron(I_K, oneB)            # N x K
+
+      Wb = np.zeros((B, B-1))
+      for j in range(B - 1):
+          Wb[j, j] = 1.0
+          Wb[B - 1, j] = -1.0
+      W = np.kron(I_K, Wb)              # N x (N-K)
+
+      assert np.allclose(R @ C, B * np.eye(K))
+      assert np.allclose(R @ W, 0)
+
+      return B, R, C, W
+
+  def solve_block_ridge_full(A, y, C, W, lam):
+      CtAt = C.T @ A.T
+      WtAt = W.T @ A.T
+
+      # print(W.T@W)
+
+      A11 = CtAt @ A @ C
+      A12 = CtAt @ A @ W
+      A21 = A12.T
+      # A22 = WtAt @ A @ W + lam * np.eye(W.shape[1])
+      A22 = WtAt @ A @ W + lam * (W.T@W)
+
+      rhs1 = CtAt @ y
+      rhs2 = WtAt @ y
+      KKT = np.block([[A11, A12],
+                      [A21, A22]])
+
+      rhs = np.vstack([rhs1, rhs2])
+
+      # sol = np.linalg.solve(KKT, rhs)
+      sol = np.linalg.lstsq(KKT, rhs)[0]
+      # sol = scipy.optimize.nnls(KKT, rhs)[0]
+      u = sol[:C.shape[1]]
+      v = sol[C.shape[1]:]
+      return u, v
+
+  def baseline_identifiable_x(A, R, y):
+      A_plus = np.linalg.pinv(A)
+      return R @ A_plus @ y
+
+#+end_src
+
+#+RESULTS:
+
+#+begin_src jupyter-python
+  N, K = q.shape[0], 4
+  B, R, C, W = build_block_ops(N, K)
+  M = hqs.shape[0]
+
+  A = A
+  S_true = q
+  y = hqs[:,None]
+  x_true = R @ S_true
+
+  lams = [0, 1E-17, 1E-16, 1E-15, 1E-14, 1E-13, 1E-12, 1E-8, 1E-5]
+
+  errs_ridge = []
+  errs_ident = []
+
+  x_hats = []
+
+  for lam in lams:
+      # u_red, v_red = solve_block_ridge_reduced(A, y, C, W, lam)
+      u_full, v_full = solve_block_ridge_full(A, y, C, W, lam)
+      # assert np.allclose(u_red, u_full, atol=1e-8)
+      # x_hat = B * u_red
+      x_hat = B * u_full
+      errs_ridge.append(np.linalg.norm(x_hat - x_true))
+      x_hats.append(np.squeeze(x_hat))
+
+  xbase = baseline_identifiable_x(A, R, y)
+
+  print(errs_ridge)
+  print([(l, np.sum(x_hat)) for l, x_hat in zip(lams, x_hats)], np.sum(q), np.sum(hqs), np.sum(xbase))
+  # plt.plot(x_hat, xbase, 'o-')
+
+  print(np.linalg.norm(R@(np.eye(R.shape[1]) - np.linalg.pinv(A)@A)), np.max(A), np.max(R), np.max(R@(np.eye(R.shape[1]) - np.linalg.pinv(A)@A)), np.min(R@(np.eye(R.shape[1]) - np.linalg.pinv(A)@A)))
+  # plt.plot(xbase, x_true, 'o')
+  # plt.plot(x_hats[0], x_true, 'o')
+  # plt.plot(x_hats[1], x_true, 'o')
+  # plt.plot(np.arange(0, np.max(x_true)), np.arange(0, np.max(x_true)), '--')
+  # print(x_true.shape)
+
+  plt.bar(np.arange(0,4)-0.3, x_hats[0][:], width=0.1, label=f"lam = {lams[0]}")
+  plt.bar(np.arange(0,4)-0.2, x_hats[5][:], width=0.1, label=f"lam = {lams[5]}")
+  plt.bar(np.arange(0,4)-0.1, x_hats[-1][:], width=0.1, label=f"lam = {lams[-1]}")
+  plt.bar(np.arange(0,4), x_true, width=0.1, label="true")
+  plt.bar(np.arange(0,4)+0.1, xbase[:,0], width=0.1, label="pinv")
+  plt.legend()
+
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+: [np.float64(224.32172432959834), np.float64(224.32172433175506), np.float64(224.321724328124), np.float64(224.32172433023), np.float64(224.3217243305042), np.float64(224.32172433120363), np.float64(232.3247750971504), np.float64(324.66128406405414), np.float64(324.6663878028046)]
+: [(0, np.float64(170.06985962177706)), (1e-17, np.float64(170.06985962076453)), (1e-16, np.float64(170.0698596224546)), (1e-15, np.float64(170.06985962147445)), (1e-14, np.float64(170.06985962131455)), (1e-13, np.float64(170.06985962073642)), (1e-12, np.float64(169.8848752635912)), (1e-08, np.float64(153.18853324988464)), (1e-05, np.float64(153.1878090706305))] 179.81566246237418 175.17088153887605 176.19317498613907
+: 4.282485019734882 0.8795593156656399 1.0 0.6967873319420923 -0.62494476343057
+: <matplotlib.legend.Legend at 0x13374fa10>
+[[file:./.ob-jupyter/013ae85efbfd8932bf59bfa936bd9c5318cd995c.png]]
+:END:
