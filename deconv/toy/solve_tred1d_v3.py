@@ -69,14 +69,15 @@ def load_fr(fr_path, scale=0.1, tail=0):
     return fr
 
 
-def build_frm(fr, N):
+def build_frm(fr, N, T=None):
     """
     Toeplitz convolution matrix frm of shape (T, N),
     where T = len(fr) + N - 1.
     """
-    T = len(fr) + N - 1
-    c = np.r_[fr, np.zeros(N - 1, dtype=np.float64)]
-    r = np.r_[fr[0], np.zeros(N - 1, dtype=np.float64)]
+    if T is None:
+        T = len(fr) + N - 1
+    c = np.r_[fr, np.zeros(T-len(fr), dtype=np.float64)]
+    r = np.r_[fr[0], np.zeros(T-len(fr)-1, dtype=np.float64)]
     frm = scipy.linalg.toeplitz(c, r)   # (T, N)
     return frm
 
@@ -123,9 +124,12 @@ def solve_tikhonov(A, y, lam=0.0):
     if lam > 0.0:
         A_aug = np.vstack([A, np.sqrt(lam) * np.eye(N, dtype=np.float64)])
         y_aug = np.concatenate([y, np.zeros(N, dtype=np.float64)])
-        q_hat, *_ = np.linalg.lstsq(A_aug, y_aug, rcond=None)
+        # non-negative constraint should be added to resolve positive q_hat
+        q_hat, *_ = scipy.optimize.nnls(A_aug, y_aug)
+        # q_hat, *_ = np.linalg.lstsq(A_aug, y_aug, rcond=None)
     else:
-        q_hat, *_ = np.linalg.lstsq(A, y, rcond=None)
+        # q_hat, *_ = np.linalg.lstsq(A, y, rcond=None)
+        q_hat, *_ = scipy.optimize.nnls(A_aug, y_aug)
     resid = np.linalg.norm(A @ q_hat - y)
     return q_hat, resid
 
@@ -220,7 +224,7 @@ def solve_block_ridge_full(A, y, C, W, Proj, lam0, lam1):
                   [A31, A32]])
     b = np.vstack([rhs1, rhs2, rhs3])
 
-    print(A.shape, C.shape, A11.shape, A12.shape, A21.shape, A22.shape, A31.shape, A32.shape, b.shape)
+    # print(A.shape, C.shape, A11.shape, A12.shape, A21.shape, A22.shape, A31.shape, A32.shape, b.shape)
 
     K = C.shape[1]
     J = W.shape[1]
@@ -252,49 +256,27 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam0=0.0, lam1
     # Determine total length T from pt1. Assume pt1 is an exclusive end by default.
     post_n = 1  # assume 1 extra spacing after last hit if signal is too small to detect; signal is assumed to be no earlier than first hit.
     pre_n = 1 # assume 1 extra spacing before first hit, which is from suppression of induction
-    max_end = int(np.max(pt1_group)) // spacing * spacing + spacing * post_n + spacing
-    min_start = int(np.min(pt0_group)) // spacing * spacing - spacing * pre_n
-    T = max_end if end_exclusive else (max_end + 1)
-    # T = max(T, 0)
-
-    # Deduce N from T and len(fr)
-    # FIXME:
-    # N = max_end - min_start  # ensure N is multiple of spacing
-    # print(max_end, min_start, N, np.max(pt1_group), np.min(pt0_group))
-    # assert N % spacing == 0, "N must be divisible by spacing"
-    # assert K >= len(hqs_group), f"K must be greater than 1 + number of hits in group, K={K}, nhits = {len(hqs_group)}"
-    # if N <= 0:
-    #     return {
-    #         "ok": False,
-    #         "reason": f"N={N} <= 0 (T={T}, len(fr)={len(fr)}). Likely windows too short for this kernel."
-    #     }
 
     # truncate time to index
 
-    # Build matrices
-    T = T - 1
-    N = T - len(fr) + 1
-    K = N // spacing
-    frm = build_frm(fr, N)                             # (T, N)
-    proj = np.zeros((N, K), dtype=np.float64)
+    # FIXME: how to deal with negative?
     start_idx = ((np.min(pt0_group) - 10.431 / 0.16 // 0.05) // spacing - pre_n) * spacing
-    end_idx = ((np.max(pt1_group) - 10.431 / 0.16 // 0.05) // spacing +  post_n) * spacing
-    start_idx = np.max([int(start_idx), 0])
+    end_idx = ((np.max(pt1_group) - 10.431 / 0.16 // 0.05) // spacing + post_n) * spacing
+    start_idx = int(start_idx)
     end_idx = int(end_idx)
-    print("range of indices", start_idx, end_idx, max_end)
-    proj[start_idx:end_idx+1] = 1.0
+    N = end_idx - start_idx
+    K = N // spacing
+    print(N, start_idx, end_idx)
+    # print("range of indices", start_idx, end_idx, max_end)
     # Proj = np.eye(N,) - proj @ proj.T
-    mask = np.zeros((N,), dtype=float)
-    mask[start_idx:end_idx+1] = 1.0
+    mask = np.ones((N,), dtype=float)
     Proj = np.diag(1.0 - mask)
+    pt0_group = pt0_group - start_idx
+    pt1_group = pt1_group - start_idx
+    T = N + len(fr)
     Ae  = build_Ae_from_pt(pt0_group, pt1_group, T, reset_time=2, end_exclusive=end_exclusive)  # (M, T)
+    frm = build_frm(fr, N, T)                             # (T, N)
     A   = Ae @ frm                                     # (M, N)
-    print("A.shape", A.shape, "frm.shape", frm.shape, "Ae.shape", Ae.shape)
-    print(np.max(A), np.min(A))
-    print("Ae", np.sum(Ae[0]), np.sum(Ae[1]))
-    print("A", np.sum(A[0]), np.sum(A[1]))
-    print(np.max(frm), np.min(frm))
-    # build y
     y = np.zeros((len(hqs_group)+1,), dtype=np.float64)
     y[1:] = hqs_group
 
@@ -326,12 +308,12 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam0=0.0, lam1
         y_vec = y.reshape(-1, 1)
         u, v = solve_block_ridge_full(A, y_vec, C, W, Proj, lam0=max(lam0, 0.0), lam1=lam1)
         x_hat = (B * u).reshape(-1)
-        x_pinv = baseline_identifiable_x(A, R, y_vec).reshape(-1)
+        # x_pinv = baseline_identifiable_x(A, R, y_vec).reshape(-1)
         result.update({
             "K": K,
             "B": B,
             "x_hat": x_hat,       # length K (block sums)
-            "x_pinv": x_pinv,     # baseline identifiable part
+            # "x_pinv": x_pinv,     # baseline identifiable part
             "tstart" : start_idx, # starting time index for this group
             "residual" : np.linalg.norm(y_vec[:,0] - A @ C @ u - A @ W @ v),
         })
@@ -452,7 +434,8 @@ def main():
     # Load kernel
     fr = load_fr(args.fr, scale=args.scale, tail=args.tail)
 
-    spacing = 50  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
+    # spacing = 50  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
+    spacing = 100  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
     assert len(fr) % 50 == 0, "length of fr must be dividable by 50 for spacing=50"
 
     # Group by (px, py)
@@ -469,14 +452,14 @@ def main():
     print(f"Solving with lam={args.lam0}, K={args.K} (block est. only if N divisible by K)")
     print("-" * 80)
 
-
     effq = npz["effq_tpc0_batch10"][:,-1]
     effq_loc = npz["effq_tpc0_batch10_location"]  # columns: [px, py, t]
-    condensed = condense_effq_by_pxpy(effq, effq_loc, spacing=50)
+    condensed = condense_effq_by_pxpy(effq, effq_loc, spacing=spacing)
     # condensed = condense_effq_by_pxpy(effq, effq_loc, spacing=1, drop_zero_bins=False)
 
 
     hit_pair = {}
+    pixel_pair = {}
 
     # Solve per group
     for gi, (px_val, py_val) in enumerate(uniq_pairs):
@@ -508,13 +491,18 @@ def main():
         qsum = float(np.sum(res["q_hat"]))
         print(f"  sum(q_hat)={qsum:.6g}")
 
+        R = np.kron(np.eye(res["K"]), np.ones((res["N"]//res["K"], 1)).T)
+
         if "x_hat" in res:
             xsum = float(np.sum(res["x_hat"]))
-            xpinv_sum = float(np.sum(res["x_pinv"]))
+            # xpinv_sum = float(np.sum(res["x_pinv"]))
             print(f"  x_hat (K={res['K']}, B={res['B']}): {res['x_hat'].round(6)}")
-            print(f"  x_pinv: {res['x_pinv'].round(6)}")
-            print(f"  sum(x_hat)={xsum:.6g}, sum(x_pinv)={xpinv_sum:.6g}")
+            print(f"  q_hat {R@res['q_hat']}")
+            # print(f"  x_pinv: {res['x_pinv'].round(6)}")
+            # print(f"  sum(x_hat)={xsum:.6g}, sum(x_pinv)={xpinv_sum:.6g}")
+            print(f"  sum(x_hat)={xsum:.6g}",)
             print(f"  time: {res['tstart']} to {res['tstart'] + res['N'] - 1} (len={res['N']})")
+            print(f"  time offset {res['tstart'] + 10.431/0.16//0.05}, offset {10.431/0.16//0.05} ")
             print(f"  residual ||y - A C u - A W v|| = {res['residual']:.6g}")
         elif "block_warning" in res:
             print(f"  Note: {res['block_warning']}")
@@ -530,6 +518,39 @@ def main():
         # plt.plot(res["A"][0])
         # plt.savefig("A0.png")
         print("-" * 80)
+
+        pixel_pair[(px_val, py_val)] = (np.sum(res["x_hat"]), np.sum(res["q_hat"]),
+                                        np.sum(condensed.get((px_val, py_val), {'sum': np.array([])})["sum"]),
+                                        np.sum(hqs_g))
+
+    for k in condensed.keys():
+        if k in pixel_pair.keys():
+            continue
+        pixel_pair[(px_val, py_val)] = (0, 0, np.sum(condensed[k]['sum']), 0)
+
+
+    x_hat_vals = [p[0] for p in pixel_pair.values()]
+    q_hat_vals = [p[1] for p in pixel_pair.values()]
+    effq_vals = [p[2] for p in pixel_pair.values()]
+    hitq_vals = [p[3] for p in pixel_pair.values()]
+    plt.figure(figsize=(10,6))
+    plt.plot(effq_vals, x_hat_vals, 'o')
+    plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
+    plt.xlabel("effq per pixel")
+    plt.ylabel("x_hat per pixel")
+    plt.savefig("xhat_vs_effq_perpix.png")
+    plt.figure(figsize=(10,6))
+    plt.plot(effq_vals, q_hat_vals, 'o')
+    plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
+    plt.xlabel("effq per pixel")
+    plt.ylabel("q_hat per pixel")
+    plt.savefig("qhat_vs_effq_perpix.png")
+    plt.figure(figsize=(10,6))
+    plt.plot(effq_vals, hitq_vals, 'o')
+    plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
+    plt.xlabel("effq per pixel")
+    plt.ylabel("hitq per pixel")
+    plt.savefig("hitq_vs_effq_perpix.png")
 
 
 if __name__ == "__main__":
