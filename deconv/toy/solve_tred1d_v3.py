@@ -167,41 +167,6 @@ def build_block_ops(N, K):
 import numpy as np
 from scipy.optimize import lsq_linear
 
-def solve_block_ridge_posu(A, y, C, W, lam):
-    """
-    Solve min ||A(Cu + Wv) - y||^2 + lam ||W v||^2
-    subject to u >= 0, v free.
-
-    Returns u, v (column vectors), and the scipy result object.
-    """
-    # Blocks
-    AC = A @ C                  # (m x K)
-    AW = A @ W                  # (m x (N-K))
-
-    # Build augmented LS system: [AC AW; 0 sqrt(lam) W] [u; v] ~= [y; 0]
-    if lam > 0:
-        top = np.hstack([AC, AW])
-        bot = np.hstack([np.zeros((W.shape[0], C.shape[1])), np.sqrt(lam) * W])
-        M = np.vstack([top, bot])
-        b = np.concatenate([np.ravel(y), np.zeros(W.shape[0])])
-    else:
-        # Pure LS without ridge
-        M = np.hstack([AC, AW])
-        b = np.ravel(y)
-
-    K = C.shape[1]
-    J = W.shape[1]
-    # Bounds: u >= 0, v free
-    lb = np.concatenate([np.zeros(K), -np.inf * np.ones(J)])
-    ub = np.concatenate([np.inf * np.ones(K + J)])
-
-    res = lsq_linear(M, b, bounds=(lb, ub), method='trf')
-    z = res.x.reshape(-1, 1)
-
-    u = z[:K]
-    v = z[K:]
-    return u, v, # res
-
 
 def solve_block_ridge_full(A, y, C, W, Proj, lam0, lam1):
     """
@@ -212,24 +177,20 @@ def solve_block_ridge_full(A, y, C, W, Proj, lam0, lam1):
     A11 = A @ C
     A12 = A @ W
     A21 = np.zeros((C.shape[0], C.shape[1]), dtype=np.float64)
-    A22 = lam0 * W
-    A31 = lam1 * Proj @ C
-    A32 = lam1 * Proj @ W
+    A22 = np.sqrt(lam0) * W
 
     rhs1 = y
     rhs2 = np.zeros((W.shape[0], 1))
-    rhs3 = np.zeros((Proj.shape[0], 1))
     M = np.block([[A11, A12],
-                  [A21, A22],
-                  [A31, A32]])
-    b = np.vstack([rhs1, rhs2, rhs3])
-
-    # print(A.shape, C.shape, A11.shape, A12.shape, A21.shape, A22.shape, A31.shape, A32.shape, b.shape)
+                  [A21, A22],])
+    b = np.vstack([rhs1, rhs2,])
 
     K = C.shape[1]
     J = W.shape[1]
     # Bounds: u >= 0, v free
-    lb = np.concatenate([np.zeros(K), -np.inf * np.ones(J)])
+    # lb = np.concatenate([np.zeros(K), -np.inf * np.ones(J)])
+    # ub = np.concatenate([np.inf * np.ones(K + J)])
+    lb = np.concatenate([-np.inf * np.ones(K + J)])
     ub = np.concatenate([np.inf * np.ones(K + J)])
 
     res = lsq_linear(M, np.squeeze(b), bounds=(lb, ub), method='trf')
@@ -237,7 +198,7 @@ def solve_block_ridge_full(A, y, C, W, Proj, lam0, lam1):
 
     u = z[:K]
     v = z[K:]
-    return u, v, # res
+    return u
 
 
 def baseline_identifiable_x(A, R, y):
@@ -294,7 +255,7 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam0=0.0, lam1
         "T": T,
         "N": N,
         "M": A.shape[0],
-        "residual_norm": float(resid),
+        # "residual_norm": float(resid),
         "q_hat": q_hat,          # length N
         "A" : A,
         "Ae" : Ae,
@@ -306,7 +267,7 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam0=0.0, lam1
         B, R, C, W = build_block_ops(N, K)
         # print('B', B, 'R', R, 'C', C, 'W', W)
         y_vec = y.reshape(-1, 1)
-        u, v = solve_block_ridge_full(A, y_vec, C, W, Proj, lam0=max(lam0, 0.0), lam1=lam1)
+        u = solve_block_ridge_full(A, y_vec, C, W, Proj, lam0=max(lam0, 0.0), lam1=lam1)
         x_hat = (B * u).reshape(-1)
         # x_pinv = baseline_identifiable_x(A, R, y_vec).reshape(-1)
         result.update({
@@ -315,7 +276,7 @@ def solve_one_group(fr, hqs_group, pt0_group, pt1_group, spacing, lam0=0.0, lam1
             "x_hat": x_hat,       # length K (block sums)
             # "x_pinv": x_pinv,     # baseline identifiable part
             "tstart" : start_idx, # starting time index for this group
-            "residual" : np.linalg.norm(y_vec[:,0] - A @ C @ u - A @ W @ v),
+            # "residual" : np.linalg.norm(y_vec[:,0] - A @ C @ u - A @ W @ v),
         })
     else:
         if K is not None and (N % K != 0):
@@ -435,7 +396,7 @@ def main():
     fr = load_fr(args.fr, scale=args.scale, tail=args.tail)
 
     # spacing = 50  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
-    spacing = 100  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
+    spacing = 25  # 0.05 ns * 0.16 cm/us * 50 = 0.04 cm
     assert len(fr) % 50 == 0, "length of fr must be dividable by 50 for spacing=50"
 
     # Group by (px, py)
@@ -487,7 +448,7 @@ def main():
             print("-" * 80)
             continue
 
-        print(f"  T={res['T']}, N={res['N']}, residual ||Aq - y||={res['residual_norm']:.6g}")
+        # print(f"  T={res['T']}, N={res['N']}, residual ||Aq - y||={res['residual_norm']:.6g}")
         qsum = float(np.sum(res["q_hat"]))
         print(f"  sum(q_hat)={qsum:.6g}")
 
@@ -503,7 +464,7 @@ def main():
             print(f"  sum(x_hat)={xsum:.6g}",)
             print(f"  time: {res['tstart']} to {res['tstart'] + res['N'] - 1} (len={res['N']})")
             print(f"  time offset {res['tstart'] + 10.431/0.16//0.05}, offset {10.431/0.16//0.05} ")
-            print(f"  residual ||y - A C u - A W v|| = {res['residual']:.6g}")
+            # print(f"  residual ||y - A C u - A W v|| = {res['residual']:.6g}")
         elif "block_warning" in res:
             print(f"  Note: {res['block_warning']}")
 
@@ -529,6 +490,7 @@ def main():
         pixel_pair[(px_val, py_val)] = (0, 0, np.sum(condensed[k]['sum']), 0)
 
 
+    lam0str = str(args.lam0).replace('.', 'p').replace('-', 'm')
     x_hat_vals = [p[0] for p in pixel_pair.values()]
     q_hat_vals = [p[1] for p in pixel_pair.values()]
     effq_vals = [p[2] for p in pixel_pair.values()]
@@ -538,13 +500,15 @@ def main():
     plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
     plt.xlabel("effq per pixel")
     plt.ylabel("x_hat per pixel")
-    plt.savefig("xhat_vs_effq_perpix.png")
+    plt.title("Block sum x_hat vs effq per pixel; lambda=%.1e" % args.lam0)
+    plt.savefig("xhat_vs_effq_perpix_lam%s.png" % lam0str)
     plt.figure(figsize=(10,6))
     plt.plot(effq_vals, q_hat_vals, 'o')
     plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
     plt.xlabel("effq per pixel")
     plt.ylabel("q_hat per pixel")
-    plt.savefig("qhat_vs_effq_perpix.png")
+    plt.title("Total q_hat vs effq per pixel; lambda=%.1e" % args.lam0)
+    plt.savefig("qhat_vs_effq_perpix_lam%s.png" % lam0str)
     plt.figure(figsize=(10,6))
     plt.plot(effq_vals, hitq_vals, 'o')
     plt.plot(np.arange(0, 30, 0.1), np.arange(0, 30, 0.1), '--')
