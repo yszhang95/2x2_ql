@@ -26,8 +26,21 @@ boundaries = {
     8 : np.array([[-63.931, -33.65875], [-62.076, 62.076], [-64.538, -2.462]]), # 7, 8
     7 : np.array([[ -3.069, -33.34125], [-62.076, 62.076], [-64.538, -2.462]]), # 7, 8
 }
-# boundaries = {k: np.sort(v, axis=1) for k, v in boundaries.items()}
 
+
+def distance_to_anode(x_position, io_group):
+    '''Calculate the absolute distance from a point to the anode plane
+    x_position: float or array of floats
+    io_group: int, one of the keys in boundaries
+    return: float or array of floats, absolute distance to anode plane
+    Requirement:
+    boundaries must be defined globally.
+    The shape of boundaries[io_group] is (3, 2), where first row is
+    [anode, cathode].
+    The anode plane is defined as the plane at the minimum x boundary.
+    '''
+    anode_x = boundaries[io_group][0, 0]
+    return np.abs(x_position - anode_x)
 
 def in_io_group(pts, io_group):
     '''Check if points are within the boundaries of the specified io_group.
@@ -386,7 +399,7 @@ def main():
     min_samples = 5  # 3cm/sqrt(2) / 0.4434cm ~ 4.7 -> 4
 
     min_samples_total = 30  # arbitrary
-    l_track_max = 15  # cm
+    l_track_max = 30  # cm
     dmax_cut = 2  # cm
 
     hits, uni_event_ids = load_file(finpath)
@@ -396,7 +409,6 @@ def main():
         parser.nevents = len(uni_event_ids)
     uni_event_ids = uni_event_ids[:min(len(uni_event_ids), parser.nevents)]
     if parser.events != []:
-        print(parser.events)
         uni_event_ids = np.array([eid for eid in uni_event_ids if eid in parser.events])
         print(f"Processing {len(uni_event_ids)} specified events.")
 
@@ -405,6 +417,7 @@ def main():
     picked = {
         "direction" : [],
         "centroid" : [],
+        "distance_to_anode" : [],
         "event_id" : [],
         "points" : [],
         "end_points" : [],
@@ -432,7 +445,7 @@ def main():
             for selected_hits in clustered_hits:
                 (track_ok, direction, centroid, fitted_hits, dropped_hits,
                  pminpmax, endpoints) = (
-                    track_fitting(selected_hits, pca_tolerance=0.1, cut_fraction=0.15)
+                    track_fitting(selected_hits, pca_tolerance=0.05, cut_fraction=0.15)
                 )
                 if not track_ok:
                     continue
@@ -463,7 +476,7 @@ def main():
                 #       f" hits used for fitting.")
                 track_hits.append(
                     (fitted_hits, dropped_hits, direction, centroid, cluster_id[0],
-                     pminpmax, endpts)
+                     pminpmax, endpts, distance_to_anode(centroid[0], io_group))
                 )
 
             if track_hits == []:
@@ -475,12 +488,16 @@ def main():
                 if isel == len(clustered_hits):
                     deselected.append(clustered_hits[i])  # everything
                 elif clustered_hits[i]['cluster_id'][0] != track_hits[isel][4]:
-                    print(i, track_hits[isel][4])
                     deselected.append(clustered_hits[i])  # everything except the selected
 
             if isel == len(clustered_hits):
                 print(f"Event {eid}, IO group {io_group}: No track found.")
                 continue
+            else:
+                print(f"Event {eid}, IO group {io_group}:"
+                      f" Selected cluster with"
+                      f" {len(track_hits[isel][0])} hits, pointing to "
+                      f"{track_hits[isel][2]}, centroid at {track_hits[isel][3]}.")
             selected_track = track_hits[isel]
             deselected.append(selected_track[1])  # dropped hits
 
@@ -492,6 +509,7 @@ def main():
             picked["points"].append(selected_track[5])
             picked["io_group"].append(io_group)
             picked["end_points"].append(selected_track[6])
+            picked["distance_to_anode"].append(selected_track[7])
 
             clustered_hits = np.concatenate(clustered_hits)
             # print(len(clustered_hits), len(selected_track[0]))
@@ -523,6 +541,7 @@ def main():
         picked["points"] = np.zeros((0, 6), dtype=np.float64)
         picked["io_group"] = np.array([], dtype=np.int64)
         picked["end_points"] = np.zeros((0, 6), dtype=np.float64)
+        picked["distance_to_anode"] = np.array([], dtype=np.float64)
     else:
         selected = np.concatenate(selected)
         picked["direction"] = np.vstack(picked["direction"])
@@ -531,6 +550,7 @@ def main():
         picked["points"] = np.vstack(picked["points"])
         picked["io_group"] = np.array(picked["io_group"])
         picked["end_points"] = np.vstack(picked["end_points"])
+        picked["distance_to_anode"] = np.array(picked["distance_to_anode"])
 
     # save output to hdf5
     with h5py.File("selected_tracks.hdf5", "w") as fout:
@@ -550,6 +570,12 @@ def main():
         fout.create_dataset("picked/points/data", data=picked["points"])
         fout.create_dataset("picked/io_group/data", data=picked["io_group"])
         fout.create_dataset("picked/end_points/data", data=picked["end_points"])
+        fout.create_dataset("picked/distance_to_anode/data", data=picked["distance_to_anode"])
+        fout.create_dataset("source_file",
+                            shape=1, dtype=h5py.string_dtype())
+        fout["source_file"][0] = finpath
+        fout["picked"].attrs["sinThetaMax"] = sinThetaMax
+        fout["picked"].attrs["source_file"] = finpath
 
 
 if __name__ == "__main__":
