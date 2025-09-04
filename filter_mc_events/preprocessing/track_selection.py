@@ -375,6 +375,8 @@ def main():
 
     argparser = argparse.ArgumentParser(description="Track selection from hits")
     argparser.add_argument('finpath', type=str, help='Input HDF5 file path')
+    argparser.add_argument('--foutpath', type=str, default='selected_tracks.hdf5',
+                           help='Output HDF5 file path. Default is selected_tracks.hdf5')
     argparser.add_argument('--nevents', type=int, default=1000,
                            help='Maximum number of events to process.'
                            ' Default is 1000. Use -1 for all events.')
@@ -553,7 +555,7 @@ def main():
         picked["distance_to_anode"] = np.array(picked["distance_to_anode"])
 
     # save output to hdf5
-    with h5py.File("selected_tracks.hdf5", "w") as fout:
+    with h5py.File(parser.foutpath, "w") as fout:
         fout.create_group("selected")\
             .create_group("hits").create_dataset("data", data=selected)
         fout.create_group("deselected")\
