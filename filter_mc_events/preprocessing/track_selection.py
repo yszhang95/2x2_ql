@@ -144,9 +144,9 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     pca.fit(points)
     explained_ratio = pca.explained_variance_ratio_[0]
     direction = pca.components_[0]
-    if (1 - explained_ratio) < pca_tolerance:
+    if (1 - explained_ratio) > pca_tolerance:
         ok = False
-        return ok, None, None, None, None, None
+        return ok, None, None, None, None, None, None
 
     projections = points @ direction
 
@@ -171,9 +171,9 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     pca.fit(selected_xyz - centroid)
     direction = pca.components_[0]
     explained_ratio = pca.explained_variance_ratio_[0]
-    if (1 - explained_ratio) < pca_tolerance:
+    if (1 - explained_ratio) > pca_tolerance:
         ok = False
-        return ok, None, None, None, None, None
+        return ok, None, None, None, None, None, None
 
     dropped_hits = hits[~mask]
     # new projection
