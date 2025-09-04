@@ -434,9 +434,9 @@ def main():
                 #       f"{direction} and centroid {centroid}, {len(fitted_hits)}"
                 #       f" hits used for fitting.")
                 track_hits.append(
-                    (fitted_hits, dropped_hits, direction, centroid, cluster_id[0], pminpmax)
+                    (fitted_hits, dropped_hits, direction, centroid, cluster_id[0],
+                     pminpmax, endpts)
                 )
-                print(pminpmax)
 
             if track_hits == []:
                 isel = len(clustered_hits)
@@ -459,10 +459,11 @@ def main():
             # selected track is the one with maximum number of hits
             selected.append(selected_track[0])
             picked["direction"].append(selected_track[2])
+            picked["centroid"].append(selected_track[3])
             picked["event_id"].append(eid)
             picked["points"].append(selected_track[5])
             picked["io_group"].append(io_group)
-            picked["end_points"].append(endpoints)
+            picked["end_points"].append(selected_track[6])
 
             clustered_hits = np.concatenate(clustered_hits)
             # print(len(clustered_hits), len(selected_track[0]))
@@ -489,6 +490,7 @@ def main():
         print("No tracks selected.")
         selected = np.zeros((0,), dtype=hits.dtype)
         picked["direction"] = np.zeros((0, 3), dtype=np.float64)
+        picked["centroid"] = np.zeros((0, 3), dtype=np.float64)
         picked["event_id"] = np.array([], dtype=np.int64)
         picked["points"] = np.zeros((0, 6), dtype=np.float64)
         picked["io_group"] = np.array([], dtype=np.int64)
@@ -496,6 +498,7 @@ def main():
     else:
         selected = np.concatenate(selected)
         picked["direction"] = np.vstack(picked["direction"])
+        picked["centroid"] = np.vstack(picked["centroid"])
         picked["event_id"] = np.array(picked["event_id"])
         picked["points"] = np.vstack(picked["points"])
         picked["io_group"] = np.array(picked["io_group"])
@@ -514,6 +517,7 @@ def main():
         fout["/hits/deselected/data"] = h5py.SoftLink("/deselected/hits/data")
 
         fout.create_dataset("picked/direction/data", data=picked["direction"])
+        fout.create_dataset("picked/centroid/data", data=picked["centroid"])
         fout.create_dataset("picked/event_id/data", data=picked["event_id"])
         fout.create_dataset("picked/points/data", data=picked["points"])
         fout.create_dataset("picked/io_group/data", data=picked["io_group"])
