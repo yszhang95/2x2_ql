@@ -373,6 +373,9 @@ def main():
     def comma_separated_ints(arg):
         return [int(x) for x in arg.split(',')]
 
+    def comma_separated_floats(arg):
+        return [float(x) for x in arg.split(',')]
+
     argparser = argparse.ArgumentParser(description="Track selection from hits")
     argparser.add_argument('finpath', type=str, help='Input HDF5 file path')
     argparser.add_argument('--foutpath', type=str, default='selected_tracks.hdf5',
@@ -380,6 +383,12 @@ def main():
     argparser.add_argument('--nevents', type=int, default=1000,
                            help='Maximum number of events to process.'
                            ' Default is 1000. Use -1 for all events.')
+    argparser.add_argument('--n_ext_trigs', type=int, default=1,
+                            help='Minimum number of external triggers in an event'
+                            ' for the event to be processed. Default is 1.')
+    argparser.add_argument('--dtoa', type=comma_separated_floats, default=[0., 100.],
+                           help='Distance to anode (cm) range for track selection.'
+                           ' Default is [0, 100] cm.')
     argparser.add_argument('--sinThetaMax', type=float, default=0.05,
                            help='Maximum sin(theta) to anode for track selection.'
                            ' Default is 0.05 (~2.7 degrees).')
@@ -403,9 +412,11 @@ def main():
     min_samples_total = 30  # arbitrary
     l_track_max = 30  # cm
     dmax_cut = 2  # cm
+    pca_tolerance = 0.05
+    cut_fraction = 0.15
 
     hits, uni_event_ids = load_file(finpath)
-    hits = filter_min_n_ext_trigs(hits, n_ext_trigs=1)
+    hits = filter_min_n_ext_trigs(hits, n_ext_trigs=parser.n_ext_trigs)
 
     if parser.nevents < 0:
         parser.nevents = len(uni_event_ids)
@@ -447,7 +458,8 @@ def main():
             for selected_hits in clustered_hits:
                 (track_ok, direction, centroid, fitted_hits, dropped_hits,
                  pminpmax, endpoints) = (
-                    track_fitting(selected_hits, pca_tolerance=0.05, cut_fraction=0.15)
+                    track_fitting(selected_hits, pca_tolerance=pca_tolerance,
+                                  cut_fraction=cut_fraction)
                 )
                 if not track_ok:
                     continue
@@ -470,6 +482,11 @@ def main():
                 if np.abs(direction[0]) / np.linalg.norm(direction) > sinThetaMax:
                     continue
 
+                # Check distance to anode
+                dtoa = distance_to_anode(centroid[0], io_group)  # cm
+                if dtoa < parser.dtoa[0] or dtoa > parser.dtoa[1]:
+                    continue
+
                 cluster_id = np.unique(selected_hits["cluster_id"])
                 assert len(cluster_id) == 1, "More than one cluster found"
                 # print(f"Event {eid}, IO group {io_group},"
@@ -478,7 +495,7 @@ def main():
                 #       f" hits used for fitting.")
                 track_hits.append(
                     (fitted_hits, dropped_hits, direction, centroid, cluster_id[0],
-                     pminpmax, endpts, distance_to_anode(centroid[0], io_group))
+                     pminpmax, endpts, dtoa)
                 )
 
             if track_hits == []:
