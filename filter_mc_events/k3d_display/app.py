@@ -3,7 +3,7 @@ import os
 import numpy as np
 import h5py
 from threading import Lock
-from flask import Flask, request, render_template_string, abort
+from flask import Flask, request, render_template_string, abort, jsonify
 
 import k3d
 
@@ -137,30 +137,26 @@ def plot_for_record(rec):
 # -----------------------------
 app = Flask(__name__)
 RECORDS = []
+CURRENT_PATH = None
 
 _loaded = False
 _load_lock = Lock()
 
-def _load_records():
-    """Load records once from env var (supports INPUT2_PATH or input2_path)."""
-    global RECORDS
-    path = os.environ.get("INPUT2_PATH") or os.environ.get("input2_path")
-    if not path:
-        raise RuntimeError("Set INPUT2_PATH (or input2_path) to your .h5 path.")
-    if not os.path.exists(path):
-        raise RuntimeError(f"INPUT2_PATH points to a missing file: {path}")
-    RECORDS = load_files(path)
-    print(f"Loaded {len(RECORDS)} records from {path}")
 
-def _ensure_loaded():
-    """Lazy, thread-safe one-time init; call at the top of any route."""
-    global _loaded
-    if _loaded:
-        return
+def _load_records_from_path(path : str):
+    """Load records once from env var (supports INPUT2_PATH or input2_path)."""
+    global RECORDS, CURRENT_PATH
+    if not path:
+        raise RuntimeError("No file path provided.")
+    # path = os.environ.get("INPUT2_PATH") or os.environ.get("input2_path")
+    if not os.path.exists(path):
+        raise RuntimeError(f"File not found: {path}")
+    records = load_files(path)
     with _load_lock:
-        if not _loaded:
-            _load_records()
-            _loaded = True
+        RECORDS = records
+        CURRENT_PATH = path
+    print(f"Loaded {len(RECORDS)} records from {path}")
+    return len(RECORDS)
 
 
 INDEX_HTML = """
@@ -182,18 +178,28 @@ INDEX_HTML = """
 <body>
   <h2>K3D Browser</h2>
 
-  <div class="row">
-    <label for="record">Event:</label>
-    <select id="record">
-      {% for i, r in enumerate(records) %}
-        <option value="{{ i }}">
-          E:{{ r['event_id'] }}
-        </option>
-      {% endfor %}
-    </select>
-    <button id="prev">← Prev</button>
-    <button id="next">Next →</button>
-    <span class="muted" id="label"></span>
+  <!-- Load control -->
+  <div class="row" style="margin-bottom:12px">
+    <input id="path" type="text" placeholder="Path to .h5 file" size="60" value="{{ current_path or '' }}"/>
+    <button id="load">Load file</button>
+    {% if records|length %}
+      <span class="ok">Loaded {{ records|length }} records from {{ current_path }}</span>
+    {% else %}
+      <span class="warn">No file loaded.</span>
+    {% endif %}
+  </div>
+  <!-- Controls (only visible when loaded) -->
+  <div id="controls" class="{{ '' if records|length else 'hidden' }}">
+    <div class="row">
+      <label for="record">Event:</label>
+      <select id="record">
+        {% for i, r in enumerate(records) %}
+          <option value="{{ i }}">E:{{ r['event_id'] }}</option>
+        {% endfor %}
+      </select>
+      <button id="prev">← Prev</button>
+      <button id="next">Next →</button>
+      <span class="muted" id="label"></span>
   </div>
 
   <div class="row" style="margin-top:8px">
@@ -209,7 +215,35 @@ INDEX_HTML = """
 
   <iframe id="viewer" src="/view/0"></iframe>
 
+  <!-- Message when not loaded -->
+  <div id="empty" class="{{ '' if not records|length else 'hidden' }}">
+    <p class="muted">Load a .h5 file to begin. The 3D viewer will appear here.</p>
+  </div>
+
   <script>
+    const loadBtn = document.getElementById('load');
+    const pathInput = document.getElementById('path');
+
+    loadBtn.onclick = async () => {
+      const path = pathInput.value.trim();
+      if (!path) {
+        alert('Please enter a path to a .h5 file.');
+        return;
+      }
+      const res = await fetch('/load', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ path })
+      });
+      if (res.ok) {
+        // reload to render server-side select/options and iframe
+        location.reload();
+      } else {
+        const msg = await res.text();
+        alert('Load failed: ' + msg);
+      }
+    };
+
     const dd = document.getElementById('record');
     const viewer = document.getElementById('viewer');
     const label = document.getElementById('label');
@@ -272,14 +306,29 @@ INDEX_HTML = """
 
 @app.route("/")
 def index():
-    _ensure_loaded()
-    if not RECORDS:
-        abort(500, "No records loaded. Set INPUT2_PATH env var before running.")
-    return render_template_string(INDEX_HTML, records=RECORDS, enumerate=enumerate)
+    return render_template_string(
+        INDEX_HTML,
+        records=RECORDS,
+        current_path=CURRENT_PATH,
+        enumerate=enumerate
+    )
+
+
+@app.route("/load", methods=["POST"])
+def load_route():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip()
+    try:
+        n = _load_records_from_path(path)
+        return jsonify({"ok": True, "count": n})
+    except Exception as e:
+        return (str(e), 400)
+
 
 @app.route("/view/<int:index>")
 def view(index: int):
-    _ensure_loaded()
+    if not RECORDS:
+        abort(400, description="No data loaded. Use the Load file control first.")
     if index < 0 or index >= len(RECORDS):
         abort(404)
     plot = plot_for_record(RECORDS[index])
@@ -290,5 +339,4 @@ def view(index: int):
 # your routes (/, /view/<int:index>, /save) stay the same
 
 if __name__ == "__main__":
-    _load_records()
     app.run(debug=True)
