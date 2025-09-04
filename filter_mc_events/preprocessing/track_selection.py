@@ -149,12 +149,13 @@ def cluster_hits(hits, eps=3, min_samples=5, min_samples_total=30):
     return cluster_hits_in_event
 
 
-def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
+def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2, dmax=2):
     ok = True
     xyz = np.vstack((hits["x"], hits["y"], hits["z"])).T
     centroid = np.mean(xyz, axis=0)
     points = xyz - centroid
 
+    # first iteration
     pca = PCA(n_components=2)
     pca.fit(points)
     explained_ratio = pca.explained_variance_ratio_[0]
@@ -169,6 +170,7 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
         [xyz[np.argmin(projections)], xyz[np.argmax(projections)]]
     )
 
+    # second iteration
     proj_min = np.min(projections)
     proj_max = np.max(projections)
     range_cut = (proj_max - proj_min) * cut_fraction
@@ -189,6 +191,25 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     if (1 - explained_ratio) > pca_tolerance:
         ok = False
         return ok, None, None, None, None, None, None
+
+    # third iteration
+    # start from the full set, cut on distance to the line
+    distances = np.linalg.cross(points, direction[np.newaxis, :])
+    maskd = np.linalg.norm(distances, axis=1) < dmax
+
+    mask = mask & maskd
+
+    selected_hits = hits[mask]
+    if len(selected_hits) == 0:
+        ok = False
+        return ok, None, None, None, None, None, None
+    selected_xyz = np.vstack(
+        (selected_hits["x"], selected_hits["y"], selected_hits["z"])
+    ).T
+    centroid = np.mean(selected_xyz, axis=0)
+    pca = PCA(n_components=1)
+    pca.fit(selected_xyz - centroid)
+    direction = pca.components_[0]
 
     dropped_hits = hits[~mask]
     # new projection
@@ -396,6 +417,9 @@ def main():
                           help='List of specific event IDs to process.'
                           ' Default is empty, meaning all events in the range.'
                            ' Example: --events 1001,1002,1005')
+    argparser.add_argument('--dmax', type=float, default=2.0,
+                           help='Maximum distance (cm) from hits to PCA-fitted'
+                           ' track for hit selection. Default is 2 cm.')
     parser = argparser.parse_args()
 
     sinThetaMax = parser.sinThetaMax
@@ -459,7 +483,7 @@ def main():
                 (track_ok, direction, centroid, fitted_hits, dropped_hits,
                  pminpmax, endpoints) = (
                     track_fitting(selected_hits, pca_tolerance=pca_tolerance,
-                                  cut_fraction=cut_fraction)
+                                  cut_fraction=cut_fraction, dmax=parser.dmax)
                 )
                 if not track_ok:
                     continue
