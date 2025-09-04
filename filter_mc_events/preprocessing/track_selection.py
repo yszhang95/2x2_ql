@@ -13,6 +13,56 @@ from sklearn.decomposition import PCA
 from numpy.lib import recfunctions as rfn
 
 
+## Hard coded 2x2 geometry
+boundaries = {
+    2 : np.array([[ 3.069, 33.34125], [-62.076, 62.076], [ 2.462, 64.538]]), # 1,2
+    1 : np.array([[63.931, 33.65875], [-62.076, 62.076], [ 2.462, 64.538]]), # 1,2
+    4 : np.array([[ 3.069, 33.34125], [-62.076, 62.076], [-64.538, -2.462]]), # 3, 4
+    3 : np.array([[63.931, 33.65875], [-62.076, 62.076], [-64.538, -2.462]]), # 3, 4
+    6 : np.array([[-63.931, -33.65875], [-62.076, 62.076], [ 2.462, 64.538]]), # 5, 6
+    5 : np.array([[ -3.069, -33.34125], [-62.076, 62.076], [ 2.462, 64.538]]), # 5, 6
+    8 : np.array([[-63.931, -33.65875], [-62.076, 62.076], [-64.538, -2.462]]), # 7, 8
+    7 : np.array([[ -3.069, -33.34125], [-62.076, 62.076], [-64.538, -2.462]]), # 7, 8
+}
+# boundaries = {k: np.sort(v, axis=1) for k, v in boundaries.items()}
+
+
+def in_io_group(pts, io_group):
+    '''Check if points are within the boundaries of the specified io_group.
+    pts: (N, 3) array of points
+    io_group: int, one of the keys in boundaries
+    return: (N,) boolean array, True if point is inside the io_group boundaries
+    Requires boundaries to be defined globally, and sorted in each dimension.
+    The shape of boundaries[io_group] is (3, 2), where each row is [min, max].
+    '''
+    bnd = np.sort(boundaries[io_group], axis=1)
+    d = np.sign(pts[..., np.newaxis] - bnd[np.newaxis, ...])
+    return np.all(np.prod(d, axis=-1) < 0, axis=1)
+
+
+def closest_face(pts, io_group):
+    """Find the closest face of the io_group boundaries for each point.
+    pts: (N, 3) array of points
+    io_group: int, one of the keys in boundaries
+    return: (N,) array of face indices (0, 1, or 2)
+    The shape of boundaries[io_group] is (3, 2), where each row
+    is [min, max].
+    The face is infinitely extended in the other two dimensions.
+    0: min face in x
+    1: max face in x
+    2: min face in y
+    3: max face in y
+    4: min face in z
+    5: max face in z
+    """
+    bnd = np.sort(boundaries[io_group], axis=1)
+    d = np.abs(pts[..., np.newaxis] - bnd[np.newaxis, ...])
+    d = d.reshape(-1, 6)
+    face_ids = np.argmin(d, axis=-1)
+    dmin = d[np.arange(len(face_ids)), face_ids]
+    return face_ids, dmin
+
+
 def load_file(finpath):
     """Load hits from h5 file and append event_id to hits."""
     with h5py.File(finpath, "r") as fin:
@@ -25,6 +75,11 @@ def load_file(finpath):
         hits = rfn.append_fields(
             hits, "n_ext_trigs", hits_events["n_ext_trigs"], usemask=False
         )
+
+        for col in ["x", "y", "z"]:
+            if np.any(np.isnan(hits[col].astype(float))):
+                hits[col] = np.nan_to_num(hits[col], nan=1E8)
+
         # TODO; I need information whether an event can have >1 external trigs.
         # print(fin["charge/ext_trigs/ref/charge/events/ref_region"][:30],
         #       len(fin["charge/ext_trigs/data"]),
@@ -95,6 +150,10 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
 
     projections = points @ direction
 
+    endpoints = np.hstack(
+        [xyz[np.argmin(projections)], xyz[np.argmax(projections)]]
+    )
+
     proj_min = np.min(projections)
     proj_max = np.max(projections)
     range_cut = (proj_max - proj_min) * cut_fraction
@@ -119,11 +178,11 @@ def track_fitting(hits, pca_tolerance=0.1, cut_fraction=0.2):
     dropped_hits = hits[~mask]
     # new projection
     projections = (selected_xyz - centroid) @ direction
-    pmin = selected_hits[np.argmin(projections)]
-    pmax = selected_hits[np.argmax(projections)]
+    pmin = centroid + projections.min() * direction
+    pmax = centroid + projections.max() * direction
     pminpmax = np.hstack((pmin, pmax))
 
-    return ok, direction, centroid, selected_hits, dropped_hits, pminpmax
+    return ok, direction, centroid, selected_hits, dropped_hits, pminpmax, endpoints
 
 
 def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, cluster_id):
@@ -304,6 +363,8 @@ def main():
     min_samples = 5  # 3cm/sqrt(2) / 0.4434cm ~ 4.7 -> 4
 
     min_samples_total = 30  # arbitrary
+    l_track_max = 15  # cm
+    dmax_cut = 2  # cm
 
     hits, uni_event_ids = load_file(finpath)
     hits = filter_min_n_ext_trigs(hits, n_ext_trigs=1)
@@ -314,9 +375,11 @@ def main():
         "direction" : [],
         "event_id" : [],
         "points" : [],
+        "end_points" : [],
+        "io_group" : [],
     }
 
-    for eid in uni_event_ids[:500]:
+    for eid in uni_event_ids[:1000]:
         event_hits = load_event(hits, eid)
         # print(f"Event {eid} has {len(event_hits)} hits.")
         for io_group in np.unique(event_hits["io_group"]):
@@ -335,11 +398,27 @@ def main():
             track_hits = []
 
             for selected_hits in clustered_hits:
-                track_ok, direction, centroid, fitted_hits, dropped_hits, pminpmax = (
-                    track_fitting(selected_hits, pca_tolerance=0.1, cut_fraction=0.15)
+                (track_ok, direction, centroid, fitted_hits, dropped_hits,
+                 pminpmax, endpoints) = (
+                    track_fitting(selected_hits, pca_tolerance=0.05, cut_fraction=0.15)
                 )
                 if not track_ok:
                     continue
+                # check if both endpoints are within the io_group boundaries
+                endpts = endpoints.reshape(2, 3)
+                # offset of t0 may lead to wrong position, so we skip this cut
+                # in_box = in_io_group(endpts, io_group)
+                # if not np.all(in_box):
+                #     continue
+                # check if both endpoints are on different faces,
+                # penatrating the box
+                face_ids, dmin = closest_face(endpts, io_group)
+                if face_ids[0] == face_ids[1] or np.any(dmin > dmax_cut):
+                    continue
+                # minimum track length cut
+                if np.linalg.norm(endpts[1] - endpts[0]) < l_track_max:
+                    continue
+
                 cluster_id = np.unique(selected_hits["cluster_id"])
                 assert len(cluster_id) == 1, "More than one cluster found"
                 # print(f"Event {eid}, IO group {io_group},"
@@ -349,6 +428,7 @@ def main():
                 track_hits.append(
                     (fitted_hits, dropped_hits, direction, centroid, cluster_id[0], pminpmax)
                 )
+                print(pminpmax)
 
             if track_hits == []:
                 isel = len(clustered_hits)
@@ -359,7 +439,7 @@ def main():
                 if i != isel:
                     deselected.append(clustered_hits[i])  # everything except the selected
 
-            if isel == len(track_hits):
+            if isel == len(clustered_hits):
                 print(f"Event {eid}, IO group {io_group}: No track found.")
                 continue
             selected_track = track_hits[isel]
@@ -370,20 +450,22 @@ def main():
             picked["direction"].append(selected_track[2])
             picked["event_id"].append(eid)
             picked["points"].append(selected_track[5])
+            picked["io_group"].append(io_group)
+            picked["end_points"].append(endpoints)
 
             clustered_hits = np.concatenate(clustered_hits)
-            print(len(clustered_hits), len(selected_track[0]))
+            # print(len(clustered_hits), len(selected_track[0]))
 
-            plot_track(
-                hits=clustered_hits,
-                selected=selected_track[0],
-                dropped=selected_track[1],
-                direction=selected_track[2],
-                centroid=selected_track[3],
-                eid=eid,
-                io_group=io_group,
-                cluster_id=selected_track[4],
-            )
+            # plot_track(
+            #     hits=clustered_hits,
+            #     selected=selected_track[0],
+            #     dropped=selected_track[1],
+            #     direction=selected_track[2],
+            #     centroid=selected_track[3],
+            #     eid=eid,
+            #     io_group=io_group,
+            #     cluster_id=selected_track[4],
+            # )
 
     # concatenate all selected_track
 
@@ -398,11 +480,15 @@ def main():
         picked["direction"] = np.zeros((0, 3), dtype=np.float64)
         picked["event_id"] = np.array([], dtype=np.int64)
         picked["points"] = np.zeros((0, 6), dtype=np.float64)
+        picked["io_group"] = np.array([], dtype=np.int64)
+        picked["end_points"] = np.zeros((0, 6), dtype=np.float64)
     else:
         selected = np.concatenate(selected)
         picked["direction"] = np.vstack(picked["direction"])
         picked["event_id"] = np.array(picked["event_id"])
         picked["points"] = np.vstack(picked["points"])
+        picked["io_group"] = np.array(picked["io_group"])
+        picked["end_points"] = np.vstack(picked["end_points"])
 
     # save output to hdf5
     with h5py.File("selected_tracks.hdf5", "w") as fout:
@@ -419,6 +505,8 @@ def main():
         fout.create_dataset("picked/direction/data", data=picked["direction"])
         fout.create_dataset("picked/event_id/data", data=picked["event_id"])
         fout.create_dataset("picked/points/data", data=picked["points"])
+        fout.create_dataset("picked/io_group/data", data=picked["io_group"])
+        fout.create_dataset("picked/end_points/data", data=picked["end_points"])
 
 
 if __name__ == "__main__":
