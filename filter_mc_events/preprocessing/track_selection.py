@@ -12,6 +12,8 @@ from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
 from numpy.lib import recfunctions as rfn
 
+import argparse
+
 
 ## Hard coded 2x2 geometry
 boundaries = {
@@ -354,8 +356,14 @@ def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, clus
 
 
 def main():
+
+    argparser = argparse.ArgumentParser(description="Track selection from hits")
+    argparser.add_argument('finpath', type=str, help='Input HDF5 file path')
+    parser = argparser.parse_args()
+
     # finpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.hdf5"
-    finpath = "./packet-0050018-2024_07_11_14_29_17_CDT.FLOW.hdf5"
+    # finpath = "./packet-0050018-2024_07_11_14_29_17_CDT.FLOW.hdf5"
+    finpath = parser.finpath
 
     n_min_hits_global = 20
 
@@ -400,7 +408,7 @@ def main():
             for selected_hits in clustered_hits:
                 (track_ok, direction, centroid, fitted_hits, dropped_hits,
                  pminpmax, endpoints) = (
-                    track_fitting(selected_hits, pca_tolerance=0.05, cut_fraction=0.15)
+                    track_fitting(selected_hits, pca_tolerance=0.1, cut_fraction=0.15)
                 )
                 if not track_ok:
                     continue
@@ -436,7 +444,10 @@ def main():
                 isel = np.argmax([len(th[0]) for th in track_hits])
             for i in range(len(clustered_hits)):
                 # print("isel", isel, "len", len(clustered_hits))
-                if i != isel:
+                if isel == len(clustered_hits):
+                    deselected.append(clustered_hits[i])  # everything
+                elif clustered_hits[i]['cluster_id'][0] != track_hits[isel][4]:
+                    print(i, track_hits[isel][4])
                     deselected.append(clustered_hits[i])  # everything except the selected
 
             if isel == len(clustered_hits):
