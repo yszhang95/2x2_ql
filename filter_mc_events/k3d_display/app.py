@@ -138,24 +138,28 @@ def plot_for_record(rec):
 app = Flask(__name__)
 RECORDS = []
 CURRENT_PATH = None
+CURRENT_ONLY_SELECTED = False  # <-- added
 
-_loaded = False
 _load_lock = Lock()
 
 
-def _load_records_from_path(path : str):
-    """Load records once from env var (supports INPUT2_PATH or input2_path)."""
-    global RECORDS, CURRENT_PATH
+def _load_records_from_path(path: str, only_selected: bool = False):
+    """Load records from a user-provided path, with optional filtering."""
+    global RECORDS, CURRENT_PATH, CURRENT_ONLY_SELECTED
     if not path:
         raise RuntimeError("No file path provided.")
-    # path = os.environ.get("INPUT2_PATH") or os.environ.get("input2_path")
     if not os.path.exists(path):
         raise RuntimeError(f"File not found: {path}")
     records = load_files(path)
+
+    # --- minimal addition: filter to events where selected is non-empty ---
+    if only_selected:
+        records = [r for r in records if getattr(r['source']['selected'], 'size', 0) > 0]
+
     with _load_lock:
         RECORDS = records
         CURRENT_PATH = path
-    print(f"Loaded {len(RECORDS)} records from {path}")
+        CURRENT_ONLY_SELECTED = only_selected
     return len(RECORDS)
 
 
@@ -169,10 +173,11 @@ INDEX_HTML = """
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .col { display: flex; flex-direction: column; gap: 8px; }
-    select, button { padding: 6px 10px; font-size: 14px; }
+    select, button, input { padding: 6px 10px; font-size: 14px; }
     #viewer { width: 100%; height: 720px; border: 0; }
     #selected { width: 320px; height: 180px; }
     .muted { color: #666; }
+    .ok { color:#16a34a; } .warn { color:#ef4444; } .hidden { display:none; }
   </style>
 </head>
 <body>
@@ -181,6 +186,10 @@ INDEX_HTML = """
   <!-- Load control -->
   <div class="row" style="margin-bottom:12px">
     <input id="path" type="text" placeholder="Path to .h5 file" size="60" value="{{ current_path or '' }}"/>
+    <label class="row" style="gap:6px; align-items:center;">
+      <input id="onlySel" type="checkbox" {% if current_only_selected %}checked{% endif %}/>
+      Only events with selected points
+    </label>
     <button id="load">Load file</button>
     {% if records|length %}
       <span class="ok">Loaded {{ records|length }} records from {{ current_path }}</span>
@@ -188,6 +197,7 @@ INDEX_HTML = """
       <span class="warn">No file loaded.</span>
     {% endif %}
   </div>
+
   <!-- Controls (only visible when loaded) -->
   <div id="controls" class="{{ '' if records|length else 'hidden' }}">
     <div class="row">
@@ -223,8 +233,9 @@ INDEX_HTML = """
   <script>
     const loadBtn = document.getElementById('load');
     const pathInput = document.getElementById('path');
+    const onlySel = document.getElementById('onlySel');
 
-    loadBtn.onclick = async () => {
+    async function doLoad() {
       const path = pathInput.value.trim();
       if (!path) {
         alert('Please enter a path to a .h5 file.');
@@ -233,15 +244,22 @@ INDEX_HTML = """
       const res = await fetch('/load', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ path })
+        body: JSON.stringify({ path, only_selected: !!onlySel.checked })
       });
       if (res.ok) {
-        // reload to render server-side select/options and iframe
         location.reload();
       } else {
         const msg = await res.text();
         alert('Load failed: ' + msg);
       }
+    }
+
+    loadBtn.onclick = doLoad;
+
+    // Reload the same file when toggling the filter checkbox
+    onlySel.onchange = () => {
+      if (!pathInput.value.trim()) return; // require path
+      doLoad();
     };
 
     const dd = document.getElementById('record');
@@ -268,7 +286,6 @@ INDEX_HTML = """
     document.getElementById('next').onclick = () => goTo(parseInt(dd.value) + 1);
     dd.onchange = () => goTo(parseInt(dd.value));
     updateLabel();
-
     // selection list helpers
     function parseSelected() {
       return selectedBox.value
@@ -310,20 +327,20 @@ def index():
         INDEX_HTML,
         records=RECORDS,
         current_path=CURRENT_PATH,
+        current_only_selected=CURRENT_ONLY_SELECTED,  # <-- added
         enumerate=enumerate
     )
-
 
 @app.route("/load", methods=["POST"])
 def load_route():
     data = request.get_json(silent=True) or {}
     path = data.get("path", "").strip()
+    only_selected = bool(data.get("only_selected", False))  # <-- added
     try:
-        n = _load_records_from_path(path)
+        n = _load_records_from_path(path, only_selected=only_selected)  # <-- added
         return jsonify({"ok": True, "count": n})
     except Exception as e:
         return (str(e), 400)
-
 
 @app.route("/view/<int:index>")
 def view(index: int):
@@ -332,11 +349,7 @@ def view(index: int):
     if index < 0 or index >= len(RECORDS):
         abort(404)
     plot = plot_for_record(RECORDS[index])
-    # Return a self-contained HTML snapshot with the live K3D viewer.
-    # (K3D docs: plot.get_snapshot() generates a standalone HTML.)  # noqa
-    return plot.get_snapshot()  #
-
-# your routes (/, /view/<int:index>, /save) stay the same
+    return plot.get_snapshot()
 
 if __name__ == "__main__":
     app.run(debug=True)
