@@ -357,9 +357,24 @@ def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, clus
 
 def main():
 
+    def comma_separated_ints(arg):
+        return [int(x) for x in arg.split(',')]
+
     argparser = argparse.ArgumentParser(description="Track selection from hits")
     argparser.add_argument('finpath', type=str, help='Input HDF5 file path')
+    argparser.add_argument('--nevents', type=int, default=1000,
+                           help='Maximum number of events to process.'
+                           ' Default is 1000. Use -1 for all events.')
+    argparser.add_argument('--sinThetaMax', type=float, default=0.05,
+                           help='Maximum sin(theta) to anode for track selection.'
+                           ' Default is 0.05 (~2.7 degrees).')
+    argparser.add_argument('--events', type=comma_separated_ints, default=[],
+                          help='List of specific event IDs to process.'
+                          ' Default is empty, meaning all events in the range.'
+                           ' Example: --events 1001,1002,1005')
     parser = argparser.parse_args()
+
+    sinThetaMax = parser.sinThetaMax
 
     # finpath = "/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.hdf5"
     # finpath = "./packet-0050018-2024_07_11_14_29_17_CDT.FLOW.hdf5"
@@ -377,17 +392,26 @@ def main():
     hits, uni_event_ids = load_file(finpath)
     hits = filter_min_n_ext_trigs(hits, n_ext_trigs=1)
 
+    if parser.nevents < 0:
+        parser.nevents = len(uni_event_ids)
+    uni_event_ids = uni_event_ids[:min(len(uni_event_ids), parser.nevents)]
+    if parser.events != []:
+        print(parser.events)
+        uni_event_ids = np.array([eid for eid in uni_event_ids if eid in parser.events])
+        print(f"Processing {len(uni_event_ids)} specified events.")
+
     selected = []
     deselected = []
     picked = {
         "direction" : [],
+        "centroid" : [],
         "event_id" : [],
         "points" : [],
         "end_points" : [],
         "io_group" : [],
     }
 
-    for eid in uni_event_ids[:1000]:
+    for eid in uni_event_ids:
         event_hits = load_event(hits, eid)
         # print(f"Event {eid} has {len(event_hits)} hits.")
         for io_group in np.unique(event_hits["io_group"]):
@@ -425,6 +449,10 @@ def main():
                     continue
                 # minimum track length cut
                 if np.linalg.norm(endpts[1] - endpts[0]) < l_track_max:
+                    continue
+
+                # Check angle to anode (x direction)
+                if np.abs(direction[0]) / np.linalg.norm(direction) > sinThetaMax:
                     continue
 
                 cluster_id = np.unique(selected_hits["cluster_id"])
