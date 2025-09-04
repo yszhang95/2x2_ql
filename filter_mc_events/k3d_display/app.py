@@ -15,23 +15,32 @@ def load_files(input2_path):
         # source_path = f2['/source_file'][()].decode('utf-8')
         sel = f2['/hits/selected/data'][:]
         des = f2['/hits/deselected/data'][:]
+        pts = f2['/picked/points/data'][:]
+        pick_eids = f2['/picked/event_id/data'][:]
+        pick_io_group = f2['/picked/io_group/data'][:]
 
     eids = set(np.unique(sel['event_id'])) | set(np.unique(des['event_id']))
 
     records = []
     for i, eid in enumerate(eids):
         # rid = int(rids[i])
-        # pmin = pts2[i, :3].tolist()
-        # pmax = pts2[i, 3:].tolist()
+        j = (pick_eids == eid)
+        if len(j) == 0:
+            pmin = np.empty((0, ))
+            pmax = np.empty((0, ))
+        else:
+            pmin = pts[j, :3].tolist()
+            pmax = pts[j, 3:].tolist()
 
         mask_sel = (sel['event_id'] == eid)
         mask_des = (des['event_id'] == eid)
+
         h_sel = np.vstack([sel[mask_sel]['x'], sel[mask_sel]['y'], sel[mask_sel]['z']]).T if np.any(mask_sel) else np.empty((0,3))
         h_des = np.vstack([des[mask_des]['x'], des[mask_des]['y'], des[mask_des]['z']]).T if np.any(mask_des) else np.empty((0,3))
 
         records.append({
             'event_id': eid,
-            # 'line': {'p_min': pmin, 'p_max': pmax},
+            'line': {'p_min': pmin, 'p_max': pmax},
             'source': {'selected': h_sel, 'deselected': h_des}
         })
     return records
@@ -104,12 +113,21 @@ def plot_for_record(rec):
         return obj
 
     # point clouds
-    plot += add_points(rec['source']['selected'], 0xff0000, 0.5, 'source_sel')
+    selected = add_points(rec['source']['selected'], 0xff0000, 0.5, 'source_sel')
+    if selected is not None:
+        plot += selected
     plot += add_points(rec['source']['deselected'],0xffa500, 0.5, 'source_desel')
 
     # line
-    # line_pts = np.array([rec['line']['p_min'], rec['line']['p_max']], dtype=np.float32)
-    # plot += k3d.line(line_pts, color=0x000000, shader="simple", name='track')
+    if selected is not None:
+        line_pts = np.array([rec['line']['p_min'], rec['line']['p_max']], dtype=np.float32)
+        line_pts = line_pts.reshape(-1, 3)
+        indices = np.arange(len(line_pts))
+        indices = indices.reshape(2, -1).T  # pairs of points
+        plot += k3d.lines(line_pts, indices=indices,
+                          color=0x000000, indices_type='segment',
+                          shader="simple", name='track')
+
 
     return plot
 
