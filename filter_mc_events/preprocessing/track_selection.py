@@ -13,7 +13,11 @@ from sklearn.decomposition import PCA
 from numpy.lib import recfunctions as rfn
 
 import argparse
+import logging
+import logging.handlers
+import os
 
+logger = logging.getLogger("track_selection")
 
 ## Hard coded 2x2 geometry
 boundaries = {
@@ -390,7 +394,6 @@ def plot_track(hits, selected, dropped, direction, centroid, eid, io_group, clus
 
 
 def main():
-
     def comma_separated_ints(arg):
         return [int(x) for x in arg.split(',')]
 
@@ -441,6 +444,31 @@ def main():
 
     hits, uni_event_ids = load_file(finpath)
     hits = filter_min_n_ext_trigs(hits, n_ext_trigs=parser.n_ext_trigs)
+
+    # Plain line formatter (just the message). Add timestamps if you want.
+    fmt = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+
+    # Rotate logs instead of growing forever
+    prefix = os.path.splitext(os.path.basename(parser.foutpath))[0]
+    fh_yes = logging.handlers.RotatingFileHandler(f"{prefix}_track.log",
+                                                  maxBytes=10_000_000, backupCount=5)
+    fh_no = logging.handlers.RotatingFileHandler(f"{prefix}_no_track.log",
+                                                  maxBytes=10_000_000, backupCount=5)
+    fh_yes.setFormatter(fmt)
+    fh_no.setFormatter(fmt)
+
+    class HasTrackFilter(logging.Filter):
+        def __init__(self, expect: bool): super().__init__(); self.expect = expect
+        def filter(self, record: logging.LogRecord) -> bool:
+            return bool(getattr(record, "has_track", False)) == self.expect
+
+    fh_yes.addFilter(HasTrackFilter(True))
+    fh_no.addFilter(HasTrackFilter(False))
+
+    logger.addHandler(fh_yes)
+    logger.addHandler(fh_no)
+
+    logger.setLevel(logging.INFO)
 
     if parser.nevents < 0:
         parser.nevents = len(uni_event_ids)
@@ -534,13 +562,15 @@ def main():
                     deselected.append(clustered_hits[i])  # everything except the selected
 
             if isel == len(clustered_hits):
-                print(f"Event {eid}, IO group {io_group}: No track found.")
+                # No track:
+                logger.info(f"{eid},{io_group}", extra={"has_track": False})
                 continue
             else:
-                print(f"Event {eid}, IO group {io_group}:"
-                      f" Selected cluster with"
-                      f" {len(track_hits[isel][0])} hits, pointing to "
-                      f"{track_hits[isel][2]}, centroid at {track_hits[isel][3]}.")
+                # Track selected:
+                logger.info(f"{eid},{io_group}: Selected cluster with"
+                            f" {len(track_hits[isel][0])} hits, pointing to "
+                            f"{track_hits[isel][2]}, centroid at {track_hits[isel][3]}.",
+                            extra={"has_track": True})
             selected_track = track_hits[isel]
             deselected.append(selected_track[1])  # dropped hits
 
