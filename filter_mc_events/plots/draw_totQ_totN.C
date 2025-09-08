@@ -2,7 +2,8 @@
 #include <string>
 
 
-static std::string data_path = "../track_data.root";
+// static std::string data_path = "../track_data.root";
+
 // static std::string mc_path = "../pgun_pid13/many_muon_hits.root";
 // static std::string effq_path = "../pgun_pid13/many_muon_effq.root";
 // static std::string mc_path = "../pgun_pid13_constR/many_muon_hits.root";
@@ -24,8 +25,8 @@ static std::string data_path = "../track_data.root";
 // static std::string mc_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_hits.root";
 // static std::string effq_path = "../pgun_3GeV_20250722/pgun_mu_3GeV_2mm_20250722_effq.root";
 // edit 20250722; default setup bug fix; file renamed
-static std::string mc_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_hits.root";
-static std::string effq_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_effq.root";
+// static std::string mc_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_hits.root";
+// static std::string effq_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_filtered_effq.root";
 
 // edit 20250724; delay 18; bug fix
 // static std::string mc_path = "../pgun_mu_20250724/pgun_mu_3GeV_2mm_20250724_delay18_filtered_hits.root";
@@ -50,6 +51,12 @@ static std::string effq_path = "../pgun_mu_20250722/pgun_mu_3GeV_2mm_20250722_fi
 // edit 20250730; xoffset 2.0cm
 // static std::string mc_path = "../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_2p0cm_filtered_hits.root";
 // static std::string effq_path = "../pgun_mu_20250730/pgun_mu_3GeV_2mm_20250730_xoffset_2p0cm_filtered_effq.root";
+
+// edit 20250805
+static std::string data_path = "../pgun_mu_20250805/track_data.root";
+static std::string mc_path = "../pgun_mu_20250805/pgun_mu_3GeV_2mm_20250805_filtered_hits.root";
+static std::string effq_path = "../pgun_mu_20250805/pgun_mu_3GeV_2mm_20250805_filtered_effq.root";
+
 
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {

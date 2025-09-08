@@ -177,6 +177,8 @@ def main():
         _, dqdx_per_source, p1, p2 = compute_dqdx(selected_source[ie],
                                                 dx_width, qthres)
 
+        print('dqdx from source', np.mean(dqdx_per_source))
+
         dist_src = np.linalg.norm(p2 - p1)
 
         if len(dqdx_per_source) == 0:
@@ -215,6 +217,7 @@ def main():
             else:
                 dropped.append(False)
                 # print(np.abs(np.mean(dqdx) - dqdx_mean_per_source), dqdx_mean_per_source, np.mean(dqdx))
+            # print(j, "compare", np.mean(dqdx_mean_per_source), np.mean(dqdx), np.abs(np.mean(dqdx) - dqdx_mean_per_source), dqdx_diff, dropped[-1])
         # does not drop anything in effq
         if args.dtype == "effq":
             dropped = []
@@ -224,6 +227,7 @@ def main():
         for j in range(len(dropped)):
             ind = len(dropped) - j - 1
             if dropped[ind]:
+                # print("popped", ind, dropped[ind])
                 del deselected_pts[ind]
                 del selected_pts[ind]
                 del mean_dqdx_per_event[ind]
