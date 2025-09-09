@@ -75,6 +75,12 @@ try:
     prefix = sys.argv[3]
 except IndexError:
     prefix = 'hits'
+
+try:
+    mismatch_tpc = int(sys.argv[4])
+except IndexError:
+    mismatch_tpc = None
+
 bname = os.path.basename(infile)
 bname_noext = os.path.splitext(bname)[0]
 with h5py.File(f'{output_dir}/{bname_noext}_{prefix}.hdf5', 'w') as fout:
@@ -111,5 +117,8 @@ with h5py.File(f'{output_dir}/{bname_noext}_{prefix}.hdf5', 'w') as fout:
     # hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs/1E3, t_drift], usemask=False)
     hits = rfn.append_fields(hits, names=['Q', 't_drift'], data=[qs, t_drift], usemask=False)
     hits = rfn.append_fields(hits, names=['io_group', 'flatten_index', 'flatten_stride', 'event_id'], data=[io_group, flatten_index, flatten_stride, eids], usemask=False)
+    if mismatch_tpc:
+        even = hits['io_group'] % 2 == 0
+        hits[even]['io_group'] += 2
 
     fout.create_dataset(prefix, data=hits)

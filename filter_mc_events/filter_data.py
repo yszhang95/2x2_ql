@@ -156,7 +156,7 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z', thresholds=None):
     points_yz1000 = points_yz[:,1:] * 1000
     if thresholds is None:
         thresholds = []
-        with h5py.File('threshold_summary.hdf5', 'r') as fthres:
+        with h5py.File('../threshold_summary.hdf5', 'r') as fthres:
             for ig in range(1,9):
                 thresholds.append(fthres[f'io_group{ig}/threshold'][:])
                 m = points_yz[:,0] == ig
@@ -262,13 +262,15 @@ except IndexError:
     oroot = 'track_data.root'
 
 with uproot.recreate(oroot) as f:
-
     # fh5 = h5py.File('/home/yousen/Public/ndlar_shared/data/data_reflowv5_20250510/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5', 'r')
     # fh5 = h5py.File('check_selection/selected_data_small_angle/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5')
     try:
         path = sys.argv[1]
     except IndexError:
         path = '/home/yousen/Public/ndlar_shared/data_reflowv5_20250708/packet-0050015-2024_07_08_13_37_49_CDT.FLOW_selected.hdf5'
+
+    # ismc = sys.argv[3] if len(sys.argv) > 3 else 'data'
+
     fh5 = h5py.File(path)
     # fh5 = h5py.File("web/many_muon_hits_selected.hdf5")
     dh5 = fh5['/selected/hits/data']
@@ -284,8 +286,8 @@ with uproot.recreate(oroot) as f:
             if len(inhits) == 0:
                 continue
             hits = prep_per_event(inhits)
-            if len(hits) < 20:
-                continue
+            # if len(hits) < 20:
+            #     continue
             xyz = np.vstack([hits['x'], hits['y'], hits['z']]).T
             max_dist = np.max(pdist(xyz))
             distances.append(float(max_dist))
