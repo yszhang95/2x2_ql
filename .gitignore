@@ -163,3 +163,8 @@ cython_debug/
 
 # numpy binary
 *.npy
+*.npz
+*.hdf5
+*.h5
+*.png
+*.zip
