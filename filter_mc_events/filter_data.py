@@ -3,6 +3,7 @@
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("error", category=RuntimeWarning)
 
 import uproot
 import h5py
@@ -184,8 +185,10 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z', thresholds=None):
     # if np.sum(dist)>1E-6:
     #     print(np.sum(dist))
     # print(np.sum(dist))
-    print('negative Q', hits['Q'][hits['Q']<0])
+    # print('negative Q', hits['Q'][hits['Q']<0])
 
+    "bad counter"
+    bad_counter = 0
     for ilabel, unique_label in enumerate(unique_labels):
         m = clustering.labels_ == unique_label
         idxs = np.asarray(m).nonzero()[0]
@@ -208,7 +211,15 @@ def sel_uni_pxl(hits, att='Q', yposlabel='y', zposlabel='z', thresholds=None):
                 avg_i[idxs[sorted_indices[i]]] = (d['Q'][sorted_indices[i]]-threshold)/17
                 tinterval[idxs[sorted_indices[i]]] = 17
             else:
-                avg_i[idxs[sorted_indices[i]]] = d['Q'][sorted_indices[i]] / (d['t_drift'][sorted_indices[i]] - d['t_drift'][sorted_indices[i-1]])
+                try:
+                    avg_i[idxs[sorted_indices[i]]] = d['Q'][sorted_indices[i]] / (d['t_drift'][sorted_indices[i]] - d['t_drift'][sorted_indices[i-1]])
+                except RuntimeWarning:
+                    avg_i[idxs[sorted_indices[i]]] = d['Q'][sorted_indices[i]] / (1.)
+                    bad_counter += 1
+                    # print("my log", i, sorted_indices[i], sorted_indices[i-1], d.dtype, d, sorted_indices)
+                # if bad_counter > 10:
+                    # print("too many bad divisions")
+                #     break
                 tinterval[idxs[sorted_indices[i]]] = d['t_drift'][sorted_indices[i]] - d['t_drift'][sorted_indices[i-1]]
             tindex[idxs[sorted_indices[i]]] = i
     uni_pxl = np.array(selected_hit, dtype=hits.dtype)
