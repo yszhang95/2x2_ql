@@ -1,33 +1,31 @@
 #include <iostream>
 #include <string>
 
-
 static std::string data_path = "merged_data.root";
-static std::string mc_path = "merged_hits.root";
-static std::string effq_path = "merged_effq.root";
-// static std::string mc_path = "merged_delay18_hits.root";
-// static std::string effq_path = "merged_delay18_effq.root";
+
+// Example mc_path and effq_path definitions (you may want to uncomment/set as needed)
+// static std::string mc_path = "merged_hits.root";
+// static std::string effq_path = "merged_effq.root";
+// std::string label = "";
+static std::string mc_path = "merged_shield_delay28_hits.root";
+static std::string effq_path = "merged_shield_delay28_effq.root";
+const std::string label = "shield_delay28";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
   std::cout << filename << std::endl;
   std::cout << treename << std::endl;
   std::cout << var << std::endl;
   std::cout << sel << std::endl;
-    // Load the ROOT file
     TFile *file = TFile::Open(filename.c_str());
     if (!file || file->IsZombie()) {
         std::cerr << "Error opening file!" << std::endl;
         return nullptr;
     }
-
-    // Get the tree from the file
     TTree *tree = (TTree*)file->Get(treename.c_str());
     if (!tree) {
         std::cerr << "Error: Tree not found!" << std::endl;
         return nullptr;
     }
-
-    // Draw the 2D histogram
     TH1F *h1d = new TH1F("h1d", "", n, nmin, nmax);
     tree->Draw(::Form("%s>>h1d", var.c_str()), sel.c_str());
     h1d->SetDirectory(0);
@@ -40,7 +38,7 @@ double sum_total_length(std::string filename, std::string treename){
     return df.Sum("distance").GetValue();
 }
 
-void draw_dx(){
+void draw_dx(const std::string label){
     auto hdx_2x2 = draw_from_tree(data_path, "selected_data/hits", "dx", "", 100, -2,3);
     hdx_2x2->SetName("hdx_2x2");
     auto hdx_tred = draw_from_tree(mc_path, "selected_data/hits", "dx", "", 100,-2,3);
@@ -58,18 +56,19 @@ void draw_dx(){
     leg->AddEntry(hdx_2x2, "2x2");
     leg->AddEntry(hdx_tred, "tred");
     leg->Draw();
-    c1->Print("comp_dx.png");
+    if (label != "") {
+        c1->Print(::Form("comp_dx_%s.png", label.c_str()));
+    } else {
+        c1->Print("comp_dx.png");
+    }
 }
 
-void draw_totQ(const bool uselength, const bool useqeff=true){
+void draw_totQ(const bool uselength, const bool useqeff, const std::string label){
 
     auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0");
     htotQ_2x2->SetName("htotQ_2x2");
     auto htotQ_tred = draw_from_tree(mc_path, "selected_data/hits", "totQ", "tindex == 0");
     htotQ_tred->SetName("htotQ_tred");
-    // auto htotQ_effq = draw_from_tree(effq_path, "selected_data/effq", "totQ.", "tindex == 0 && totQ > 5");
-    // auto htotQ_effq2 = draw_from_tree(effq_path, "selected_data/effq", "totQ.", "tindex == 0 && totQ > 3");
-    // auto htotQ_effq3 = draw_from_tree(effq_path, "selected_data/effq", "totQ.", "tindex == 0 && totQ > 7");
     auto htotQ_effq = draw_from_tree(effq_path, "selected_data/hits", "totQ.", "tindex == 0 && totQ > 5");
     auto htotQ_effq2 = draw_from_tree(effq_path, "selected_data/hits", "totQ.", "tindex == 0 && totQ > 3");
     auto htotQ_effq3 = draw_from_tree(effq_path, "selected_data/hits", "totQ.", "tindex == 0 && totQ > 7");
@@ -127,30 +126,35 @@ void draw_totQ(const bool uselength, const bool useqeff=true){
         tex->SetTextFont(42);
         auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
         auto d_tred = sum_total_length(mc_path, "selected_data/distances");
-        // tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotQ_2x2->Integral(), d_2x2));
-        // tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotQ_tred->Integral(), d_tred));
     }
-    if (uselength) {
-        c1->Print("comp_totQ_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_totQ_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_totQ_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_totQ.png");
+        if (uselength) {
+            c1->Print("comp_totQ_norm_by_l.png");
+        } else {
+            c1->Print("comp_totQ.png");
+        }
     }
 }
 
-void draw_totQ_smeared(const bool uselength){
-
+void draw_totQ_smeared(const bool uselength, const std::string label){
     auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0");
     htotQ_2x2->SetName("htotQ_2x2");
     auto htotQ_tred = draw_from_tree(mc_path, "selected_data/hits", "totQ", "tindex == 0");
     htotQ_tred->SetName("htotQ_tred");
     TCanvas* c1 = new TCanvas("ctotQ_smeared", "totQ_smeared", 800, 600);
-ROOT::RDataFrame df("selected_data/hits", mc_path);
-auto dfnew = df.Define("totQ_smear1k", [](const double totQ)->double { return totQ + gRandom->Uniform(-0.5, 0.5); }, {"totQ"}).
-Define("totQ_smear2k", [](const double totQ)->double{ return totQ + gRandom->Uniform(-0.5, 0.5) * 2; }, {"totQ"}).
-Define("totQ_smear4k", [](const double totQ)->double{ return totQ + gRandom->Uniform(-0.5, 0.5) * 4; }, {"totQ"});
-  auto htotQ_smear1k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear1k", "totQ + Uniform[-0.5, 0.5]", 50, 0, 50}, "totQ_smear1k");
-  auto htotQ_smear2k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear2k", "totQ + Uniform[-1, 1]", 50, 0, 50}, "totQ_smear2k");
-  auto htotQ_smear4k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear2k", "totQ + Uniform[-2, 2]", 50, 0, 50}, "totQ_smear4k");
+    ROOT::RDataFrame df("selected_data/hits", mc_path);
+    auto dfnew = df.Define("totQ_smear1k", [](const double totQ)->double { return totQ + gRandom->Uniform(-0.5, 0.5); }, {"totQ"}).
+    Define("totQ_smear2k", [](const double totQ)->double{ return totQ + gRandom->Uniform(-0.5, 0.5) * 2; }, {"totQ"}).
+    Define("totQ_smear4k", [](const double totQ)->double{ return totQ + gRandom->Uniform(-0.5, 0.5) * 4; }, {"totQ"});
+    auto htotQ_smear1k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear1k", "totQ + Uniform[-0.5, 0.5]", 50, 0, 50}, "totQ_smear1k");
+    auto htotQ_smear2k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear2k", "totQ + Uniform[-1, 1]", 50, 0, 50}, "totQ_smear2k");
+    auto htotQ_smear4k = dfnew.Filter("tindex == 0").Histo1D({"htotQ_smear2k", "totQ + Uniform[-2, 2]", 50, 0, 50}, "totQ_smear4k");
     htotQ_2x2->SetTitle("total Q per pixel;totQ;normalized counts");
     if (uselength) {
         auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
@@ -172,15 +176,15 @@ Define("totQ_smear4k", [](const double totQ)->double{ return totQ + gRandom->Uni
     htotQ_2x2->SetLineColor(kRed);
     htotQ_tred->Draw("SAME");
     htotQ_tred->SetLineColor(kBlue);
-  htotQ_smear1k->SetLineColor(kGreen-3);
-  htotQ_smear2k->SetLineColor(kGreen+3);
-  htotQ_smear4k->SetLineColor(kGreen+5);
-  htotQ_smear1k->SetLineStyle(2);
-  htotQ_smear2k->SetLineStyle(3);
-  htotQ_smear4k->SetLineStyle(4);
-  htotQ_smear1k->Draw("SAME HIST");
-  htotQ_smear2k->Draw("SAME HIST");
-  htotQ_smear4k->Draw("SAME HIST");
+    htotQ_smear1k->SetLineColor(kGreen-3);
+    htotQ_smear2k->SetLineColor(kGreen+3);
+    htotQ_smear4k->SetLineColor(kGreen+5);
+    htotQ_smear1k->SetLineStyle(2);
+    htotQ_smear2k->SetLineStyle(3);
+    htotQ_smear4k->SetLineStyle(4);
+    htotQ_smear1k->Draw("SAME HIST");
+    htotQ_smear2k->Draw("SAME HIST");
+    htotQ_smear4k->Draw("SAME HIST");
 
     TLegend * leg = new TLegend(0.5, 0.7, 0.8, 0.85);
     leg->AddEntry(htotQ_2x2, "2x2");
@@ -194,18 +198,23 @@ Define("totQ_smear4k", [](const double totQ)->double{ return totQ + gRandom->Uni
         tex->SetTextFont(42);
         auto d_2x2 = sum_total_length(data_path, "selected_data/distances");
         auto d_tred = sum_total_length(mc_path, "selected_data/distances");
-        // tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotQ_2x2->Integral(), d_2x2));
-        // tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotQ_tred->Integral(), d_tred));
     }
-    if (uselength) {
-        c1->Print("comp_totQ_smear_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_totQ_smear_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_totQ_smear_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_totQ_smear.png");
+        if (uselength) {
+            c1->Print("comp_totQ_smear_norm_by_l.png");
+        } else {
+            c1->Print("comp_totQ_smear.png");
+        }
     }
 }
 
-void draw_totN(const bool uselength){
-
+void draw_totN(const bool uselength, const std::string label){
     auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
     htotN_2x2->SetName("htotN_2x2");
     auto htotN_tred = draw_from_tree(mc_path, "selected_data/hits", "totN", "tindex == 0", 5, -0.5, 4.5);
@@ -238,15 +247,22 @@ void draw_totN(const bool uselength){
         tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
         tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotN_tred->Integral(), d_tred));
     }
-    if (uselength) {
-        c2->Print("comp_totN_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c2->Print(::Form("comp_totN_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c2->Print(::Form("comp_totN_%s.png", label.c_str()));
+        }
     } else {
-        c2->Print("comp_totN.png");
+        if (uselength) {
+            c2->Print("comp_totN_norm_by_l.png");
+        } else {
+            c2->Print("comp_totN.png");
+        }
     }
 }
 
-void draw_totN_totQ30(const bool uselength){
-
+void draw_totN_totQ30(const bool uselength, const std::string label){
     auto htotN_2x2 = draw_from_tree(data_path, "selected_data/hits", "totN", "tindex == 0 && totQ>30", 5, -0.5, 4.5);
     htotN_2x2->SetName("htotNtotQ30_2x2");
     auto htotN_tred = draw_from_tree(mc_path, "selected_data/hits", "totN", "tindex == 0 && totQ>30", 5, -0.5, 4.5);
@@ -279,15 +295,22 @@ void draw_totN_totQ30(const bool uselength){
         tex->DrawLatexNDC(0.5, 0.55, ::Form("Integral (2x2): %.2f * %.0fcm", htotN_2x2->Integral(), d_2x2));
         tex->DrawLatexNDC(0.5, 0.5, ::Form("Integral (tred): %.2f * %.0fcm", htotN_tred->Integral(), d_tred));
     }
-    if (uselength) {
-        c2->Print("comp_totNtotQ30_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c2->Print(::Form("comp_totNtotQ30_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c2->Print(::Form("comp_totNtotQ30_%s.png", label.c_str()));
+        }
     } else {
-        c2->Print("comp_totNtotQ30.png");
+        if (uselength) {
+            c2->Print("comp_totNtotQ30_norm_by_l.png");
+        } else {
+            c2->Print("comp_totNtotQ30.png");
+        }
     }
 }
 
-void draw_totQ_totN1(const bool uselength){
-
+void draw_totQ_totN1(const bool uselength, const std::string label){
     auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 1");
     htotQ_2x2->SetName("htotQ_2x2_totN1");
     auto htotQ_tred = draw_from_tree(mc_path, "selected_data/hits", "totQ", "tindex == 0 && totN==1");
@@ -318,15 +341,22 @@ void draw_totQ_totN1(const bool uselength){
         tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
         tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
     }
-    if (uselength) {
-        c1->Print("comp_totQ_totN1_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_totQ_totN1_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_totQ_totN1_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_totQ_totN1.png");
+        if (uselength) {
+            c1->Print("comp_totQ_totN1_norm_by_l.png");
+        } else {
+            c1->Print("comp_totQ_totN1.png");
+        }
     }
 }
 
-void draw_totQ_totN2(const bool uselength){
-
+void draw_totQ_totN2(const bool uselength, const std::string label){
     auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 2");
     htotQ_2x2->SetName("htotQ_2x2_totN2");
     auto htotQ_tred = draw_from_tree(mc_path, "selected_data/hits", "totQ", "tindex == 0 && totN==2");
@@ -357,15 +387,22 @@ void draw_totQ_totN2(const bool uselength){
         tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
         tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
     }
-    if (uselength) {
-        c1->Print("comp_totQ_totN2_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_totQ_totN2_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_totQ_totN2_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_totQ_totN2.png");
+        if (uselength) {
+            c1->Print("comp_totQ_totN2_norm_by_l.png");
+        } else {
+            c1->Print("comp_totQ_totN2.png");
+        }
     }
 }
 
-void draw_totQ_totN3(const bool uselength){
-
+void draw_totQ_totN3(const bool uselength, const std::string label){
     auto htotQ_2x2 = draw_from_tree(data_path, "selected_data/hits", "totQ", "tindex == 0 && totN == 3");
     htotQ_2x2->SetName("htotQ_2x2_totN3");
     auto htotQ_tred = draw_from_tree(mc_path, "selected_data/hits", "totQ", "tindex == 0 && totN==3");
@@ -396,15 +433,22 @@ void draw_totQ_totN3(const bool uselength){
         tex->DrawLatexNDC(0.2, 0.75, ::Form("Integral (2x2): %.2f", htotQ_2x2->Integral()));
         tex->DrawLatexNDC(0.2, 0.68, ::Form("Integral (tred): %.2f", htotQ_tred->Integral()));
     }
-    if (uselength) {
-        c1->Print("comp_totQ_totN3_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_totQ_totN3_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_totQ_totN3_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_totQ_totN3.png");
+        if (uselength) {
+            c1->Print("comp_totQ_totN3_norm_by_l.png");
+        } else {
+            c1->Print("comp_totQ_totN3.png");
+        }
     }
 }
 
-void draw_thres(const bool uselength){
-
+void draw_thres(const bool uselength, const std::string label){
     auto hthres_2x2 = draw_from_tree(data_path, "selected_data/hits", "thres", "tindex == 0");
     hthres_2x2->SetName("hthres_2x2");
     auto hthres_tred = draw_from_tree(mc_path, "selected_data/hits", "thres", "tindex == 0");
@@ -429,23 +473,31 @@ void draw_thres(const bool uselength){
     leg->AddEntry(hthres_2x2, "2x2");
     leg->AddEntry(hthres_tred, "tred");
     leg->Draw();
-    if (uselength) {
-        c1->Print("comp_thres_norm_by_l.png");
+    if (label != "") {
+        if (uselength) {
+            c1->Print(::Form("comp_thres_norm_by_l_%s.png", label.c_str()));
+        } else {
+            c1->Print(::Form("comp_thres_%s.png", label.c_str()));
+        }
     } else {
-        c1->Print("comp_thres.png");
+        if (uselength) {
+            c1->Print("comp_thres_norm_by_l.png");
+        } else {
+            c1->Print("comp_thres.png");
+        }
     }
 }
 
 void draw_totQ_totN(bool uselength=false){
     TH1::SetDefaultSumw2();
     gStyle->SetOptStat(0);
-    draw_totQ(uselength);
-    draw_totN(uselength);
-    draw_totN_totQ30(uselength);
-    draw_totQ_totN1(uselength);
-    draw_totQ_totN2(uselength);
-    draw_totQ_totN3(uselength);
-    draw_thres(uselength);
-    draw_dx();
-    draw_totQ_smeared(uselength);
+    draw_totQ(uselength, true, label);
+    draw_totN(uselength, label);
+    draw_totN_totQ30(uselength, label);
+    draw_totQ_totN1(uselength, label);
+    draw_totQ_totN2(uselength, label);
+    draw_totQ_totN3(uselength, label);
+    draw_thres(uselength, label);
+    draw_dx(label);
+    draw_totQ_smeared(uselength, label);
 }
