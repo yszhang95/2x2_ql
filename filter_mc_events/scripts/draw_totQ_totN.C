@@ -10,9 +10,12 @@ static std::string data_path = "merged_data.root";
 /* static std::string mc_path = "merged_shield_delay28_hits.root"; */
 /* static std::string effq_path = "merged_shield_delay28_effq.root"; */
 /* const std::string label = "shield_delay28"; */
-static std::string mc_path = "merged_noshield_thres5k_hits.root";
-static std::string effq_path = "merged_noshield_thres5k_effq.root";
-const std::string label = "noshield_thres5k";
+/* static std::string mc_path = "merged_noshield_thres5k_hits.root"; */
+/* static std::string effq_path = "merged_noshield_thres5k_effq.root"; */
+/* const std::string label = "noshield_thres5k"; */
+static std::string mc_path = "merged_shield_hits.root";
+static std::string effq_path = "merged_shield_effq.root";
+const std::string label = "shield";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
   std::cout << filename << std::endl;
