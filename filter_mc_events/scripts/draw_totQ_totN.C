@@ -4,9 +4,9 @@
 static std::string data_path = "merged_data.root";
 
 // Example mc_path and effq_path definitions (you may want to uncomment/set as needed)
-// static std::string mc_path = "merged_hits.root";
-// static std::string effq_path = "merged_effq.root";
-// std::string label = "";
+/* static std::string mc_path = "merged_hits.root"; */
+/* static std::string effq_path = "merged_effq.root"; */
+/* std::string label = ""; */
 /* static std::string mc_path = "merged_shield_delay28_hits.root"; */
 /* static std::string effq_path = "merged_shield_delay28_effq.root"; */
 /* const std::string label = "shield_delay28"; */
@@ -21,10 +21,22 @@ static std::string data_path = "merged_data.root";
 /* const std::string label = "shield"; */
 /* static std::string mc_path = "merged_thres_up0p1_hits.root"; */
 /* static std::string effq_path = "merged_thres_up0p1_effq.root"; */
-/* const std::string label = "thers_up0p1"; */
-static std::string mc_path = "merged_thres_up0p2_hits.root";
-static std::string effq_path = "merged_thres_up0p2_effq.root";
-const std::string label = "thers_up0p2";
+/* const std::string label = "thres_up0p1"; */
+/* static std::string mc_path = "merged_thres_up0p2_hits.root"; */
+/* static std::string effq_path = "merged_thres_up0p2_effq.root"; */
+/* const std::string label = "thres_up0p2"; */
+/* static std::string mc_path = "merged_thres_down0p1_hits.root"; */
+/* static std::string effq_path = "merged_thres_down0p1_effq.root"; */
+/* const std::string label = "thres_down0p1"; */
+static std::string mc_path = "merged_thres_down0p2_hits.root";
+static std::string effq_path = "merged_thres_down0p2_effq.root";
+const std::string label = "thres_down0p2";
+/* static std::string mc_path = "merged_shield_fake0p4434cm_delay28_hits.root"; */
+/* static std::string effq_path = "merged_shield_fake0p4434cm_delay28_effq.root"; */
+/* const std::string label = "shield_fake0p4434cm_delay28"; */
+/* static std::string mc_path = "merged_shield_fake0p4434cm_hits.root"; */
+/* static std::string effq_path = "merged_shield_fake0p4434cm_effq.root"; */
+/* const std::string label = "shield_fake0p4434cm"; */
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
   std::cout << filename << std::endl;
@@ -127,7 +139,7 @@ void draw_totQ(const bool uselength, const bool useqeff, const std::string label
         htotQ_effq3->SetLineStyle(4);
     }
 
-    TLegend * leg = new TLegend(0.5, 0.7, 0.8, 0.85);
+    TLegend * leg = new TLegend(0.65, 0.7, 0.9, 0.9);
     leg->AddEntry(htotQ_2x2, "2x2");
     leg->AddEntry(htotQ_tred, "tred");
     if (useqeff && uselength) {
