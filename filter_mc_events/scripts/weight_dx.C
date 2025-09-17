@@ -7,7 +7,10 @@ void weight_dx(int totN_min, int totN_max)
 {
   using namespace ROOT;
  auto dfdata = RDataFrame("selected_data/hits", "merged_data.root");
- auto dftred = RDataFrame("selected_data/hits", "merged_hits.root");
+ // auto dftred = RDataFrame("selected_data/hits", "merged_hits.root");
+ // auto dftred = RDataFrame("selected_data/hits", "merged_hits_20250916.root");
+ // auto dftred = RDataFrame("selected_data/hits", "merged_noise2_hits.root");
+ auto dftred = RDataFrame("selected_data/hits", "merged_delay18_hits.root");
  auto hdata = dfdata.Histo1D({"h_totN_data", "", 4, 0.5, 4.5}, "totN");
  auto htred = dftred.Histo1D({"h_totN_tred", "", 4, 0.5, 4.5}, "totN");
 
@@ -45,15 +48,19 @@ Define("totN123",  [=](const long long totN) -> float { if (totN <=totN_max && t
   hdata_dx_weight->Draw("SAME");
   // htred_dx_weight->SetLineStyle(2);
   // htred_dx_weight->Draw("HIST SAME");
-  htred_dx_weight->Draw("SAME");
-  htred_dx_weight->SetLineColor(kBlue);
+  if (totN_min != totN_max) {
+    htred_dx_weight->Draw("SAME");
+    htred_dx_weight->SetLineColor(kBlue);
+  }
   htred_dx->SetLineStyle(2);
   htred_dx->Draw("HIST SAME");
   htred_dx->SetLineColor(kGreen+3);
 
   TLegend * leg = new TLegend(0.5, 0.7, 0.9, 0.9);
   leg->AddEntry(hdata_dx_weight.GetPtr(), hdata_dx_weight->GetTitle());
-  leg->AddEntry(htred_dx_weight.GetPtr(), htred_dx_weight->GetTitle());
+  if (totN_min != totN_max) {
+    leg->AddEntry(htred_dx_weight.GetPtr(), htred_dx_weight->GetTitle());
+  }
   leg->AddEntry(htred_dx.GetPtr(), htred_dx->GetTitle());
   leg->Draw();
   c->Print(::Form("comp_dx_weighted_totNmin%d_totNmax%d.png", totN_min, totN_max));
