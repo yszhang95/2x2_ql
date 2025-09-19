@@ -8,9 +8,9 @@ while IFS= read -r InFile; do
 
     SrcBase=$(basename "$SrcFile")
     HitFileDir="${SrcBase%.hdf5}"
-    HitFile="/home/yousen/Documents/NDLAr2x2/tred/tests/playground/for_batch_pgun/${HitFileDir}/pgun_mu_3GeV_2mm.npz"
+    HitFile="/home/yousen/Documents/NDLAr2x2/tred/tests/playground/for_batch_pgun/${HitFileDir}/pgun_mu_3GeV_2mm_noise2.npz"
     HODir=$(dirname ${HitFile})
-    HOFile="${HODir}/pgun_mu_3GeV_2mm_hits.hdf5"
+    HOFile="${HODir}/pgun_mu_3GeV_2mm_noise2_hits.hdf5"
 
     if [[ ! -d $HitFileDir ]]; then
         echo "Output directory $HitFileDir does not exist. Creating it."
@@ -35,7 +35,7 @@ while IFS= read -r InFile; do
 
     QOFile=${HOFile/_hits.hdf5/_effq.hdf5}
     QODir=$(dirname ${QOFile})
-    HOFileSelected="${HODir}/pgun_mu_3GeV_2mm_20250916_selected_hits.hdf5"
+    HOFileSelected="${HODir}/pgun_mu_3GeV_2mm_noise2_20250916_selected_hits.hdf5"
     QOFileSelected=${HOFileSelected/_hits/_effq}
 
     echo "Selecting data in hdf5"
@@ -45,7 +45,7 @@ while IFS= read -r InFile; do
     uv run ../pick_pgun2.py --dtype=effq $SrcFile $QOFile $QOFileSelected
 
     echo "Converting data to root"
-    uv run ../filter_data.py $HOFileSelected ${HODir}/pgun_mu_3GeV_2mm_20250916_selected_hits.root
-    uv run ../filter_data.py $QOFileSelected ${QODir}/pgun_mu_3GeV_2mm_20250916_selected_effq.root
+    uv run ../filter_data.py $HOFileSelected ${HODir}/pgun_mu_3GeV_2mm_noise2_20250916_selected_hits.root
+    uv run ../filter_data.py $QOFileSelected ${QODir}/pgun_mu_3GeV_2mm_noise2_20250916_selected_effq.root
 done < "/home/yousen/Documents/NDLAr2x2/MuonLArSim/run_list.txt"
 # edit 20250916

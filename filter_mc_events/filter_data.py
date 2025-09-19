@@ -300,6 +300,8 @@ with uproot.recreate(oroot) as f:
             # if len(hits) < 20:
             #     continue
             xyz = np.vstack([hits['x'], hits['y'], hits['z']]).T
+            if len(xyz) < 2:
+                continue
             max_dist = np.max(pdist(xyz))
             distances.append(float(max_dist))
             out_hits.append(hits)
