@@ -40,9 +40,18 @@ static std::string data_path = "merged_data.root";
 /* const std::string mc_path = "merged_hits_20250916.root"; */
 /* const std::string effq_path = "merged_effq_20250916.root"; */
 /* const std::string label = "20250916"; */
-const std::string mc_path = "merged_noise2_hits.root";
-const std::string effq_path = "merged_noise2_effq.root";
-const std::string label = "noise2";
+/* const std::string mc_path = "merged_noise2_hits.root"; */
+/* const std::string effq_path = "merged_noise2_effq.root"; */
+/* const std::string label = "noise2"; */
+/* const std::string mc_path = "merged_delay18_noise2_hits.root"; */
+/* const std::string effq_path = "merged_noise2_effq.root"; */
+/* const std::string label = "delay18_noise2"; */
+/* const std::string mc_path = "merged_noise4_hits.root"; */
+/* const std::string effq_path = "merged_noise2_effq.root"; */
+/* const std::string label = "noise4"; */
+const std::string mc_path = "merged_hits_20250922.root";
+const std::string effq_path = "merged_effq.root";
+const std::string label = "delay15_20250922";
 
 TH1F* draw_from_tree(std::string filename, std::string treename, std::string var, std::string sel, int n=45, float nmin=0, float nmax=45) {
   std::cout << filename << std::endl;

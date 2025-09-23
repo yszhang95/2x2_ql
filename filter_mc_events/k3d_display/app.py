@@ -12,12 +12,31 @@ import k3d
 # -----------------------------
 def load_files(input2_path):
     with h5py.File(input2_path, 'r') as f2:
-        # source_path = f2['/source_file'][()].decode('utf-8')
-        sel = f2['/hits/selected/data'][:]
-        des = f2['/hits/deselected/data'][:]
-        pts = f2['/picked/points/data'][:]
-        pick_eids = f2['/picked/event_id/data'][:]
-        pick_io_group = f2['/picked/io_group/data'][:]
+        source_path = f2['/source_file'][()].decode('utf-8')
+        if '/hits/selected/data' in f2:
+            sel = f2['/hits/selected/data'][:]
+        elif '/selected/hits/data' in f2:
+            sel = f2['/selected/hits/data'][:]
+        else:
+            raise RuntimeError("No selected hits dataset found in the file.")
+        if '/hits/deselected/data' in f2:
+            des = f2['/hits/deselected/data'][:]
+        elif '/deselected/hits/data' in f2:
+            des = f2['/deselected/hits/data'][:]
+        if '/picked/points/data' in f2:
+            pts = f2['/picked/points/data'][:]
+        elif '/picked/points' in f2:
+            pts = f2['/picked/points'][:]
+        else:
+            raise RuntimeError("No picked points dataset found in the file.")
+        if '/picked/event_id/data' in f2:
+            pick_eids = f2['/picked/event_id/data'][:]
+        elif '/picked/event_id' in f2:
+            pick_eids = f2['/picked/event_id'][:]
+        else:
+            raise RuntimeError("No picked event_id dataset found in the file.")
+        if 'picked/io_group/data' in f2:
+            pick_io_group = f2['/picked/io_group/data'][:]
 
     eids = set(np.unique(sel['event_id'])) | set(np.unique(des['event_id']))
 

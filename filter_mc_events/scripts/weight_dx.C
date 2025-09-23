@@ -9,8 +9,10 @@ void weight_dx(int totN_min, int totN_max)
  auto dfdata = RDataFrame("selected_data/hits", "merged_data.root");
  // auto dftred = RDataFrame("selected_data/hits", "merged_hits.root");
  // auto dftred = RDataFrame("selected_data/hits", "merged_hits_20250916.root");
+ auto dftred = RDataFrame("selected_data/hits", "merged_hits_20250922.root");
+ /* auto dftred = RDataFrame("selected_data/hits", "merged_noise4_hits.root"); */
  // auto dftred = RDataFrame("selected_data/hits", "merged_noise2_hits.root");
- auto dftred = RDataFrame("selected_data/hits", "merged_delay18_hits.root");
+ /* auto dftred = RDataFrame("selected_data/hits", "merged_delay18_hits.root"); */
  auto hdata = dfdata.Histo1D({"h_totN_data", "", 4, 0.5, 4.5}, "totN");
  auto htred = dftred.Histo1D({"h_totN_tred", "", 4, 0.5, 4.5}, "totN");
 
